@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flame Streak Preview</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #f3f4f6;
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .preview-section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .flame-row {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .flame-row:last-child {
+            border-bottom: none;
+        }
+        
+        .user-name {
+            min-width: 100px;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .streak-info {
+            margin-left: 1rem;
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+        
+        /* Hot Streak Flames */
+        .flame-orange {
+            color: #ff6b35;
+            font-size: 1.2em;
+            filter: drop-shadow(0 0 2px #ff6b3550);
+        }
+        
+        .flame-red {
+            color: #dc2626;
+            font-size: 1.2em;
+            filter: drop-shadow(0 0 3px #dc262650);
+        }
+        
+        .flame-purple {
+            color: #7c3aed;
+            font-size: 1.2em;
+            filter: drop-shadow(0 0 4px #7c3aed50);
+        }
+        
+        .flame-white-hot {
+            color: #ffffff;
+            font-size: 1.2em;
+            text-shadow: 
+                0 0 5px #fbbf24,
+                0 0 10px #f59e0b,
+                0 0 15px #d97706;
+            background: linear-gradient(45deg, #fbbf24, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* Cold Streak */
+        .flame-cold {
+            color: #3b82f6;
+            font-size: 1.2em;
+            filter: drop-shadow(0 0 3px #3b82f650);
+        }
+        
+        /* Perfect Week Bonuses */
+        .perfect-star {
+            color: #fbbf24;
+            margin-left: 4px;
+            font-size: 0.9em;
+            filter: drop-shadow(0 0 2px #fbbf2450);
+        }
+        
+        .perfect-crown {
+            color: #fbbf24;
+            margin-left: 4px;
+            font-size: 1.1em;
+            filter: drop-shadow(0 0 3px #fbbf2450);
+        }
+        
+        /* Animations */
+        .flame-animated {
+            animation: flicker 1.5s infinite alternate;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes flicker {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .title {
+            color: #1f2937;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center; color: #1f2937;">🏈 NFL Spread League - Flame Streak Preview</h1>
+    
+    <div class="preview-section">
+        <h2 class="title">🔥 Hot Streaks (2+ Correct Picks)</h2>
+        
+        <div class="flame-row">
+            <span class="user-name">Jacob</span>
+            <span class="flame-orange">🔥</span>
+            <span class="streak-info">2-week streak (Orange - Getting warm)</span>
+        </div>
+        
+        <div class="flame-row">
+            <span class="user-name">Nathan</span>
+            <span class="flame-red flame-animated">🔥🔥</span>
+            <span class="streak-info">3-week streak (Red - Heating up!)</span>
+        </div>
+        
+        <div class="flame-row">
+            <span class="user-name">Shane</span>
+            <span class="flame-purple flame-animated">🔥🔥🔥</span>
+            <span class="streak-info">4-week streak (Purple - On fire!)</span>
+        </div>
+        
+        <div class="flame-row">
+            <span class="user-name">Cam</span>
+            <span class="flame-white-hot flame-animated pulse">🔥🔥🔥🔥</span>
+            <span class="streak-info">5-week streak (White-hot - LEGENDARY!)</span>
+        </div>
+    </div>
+
+    <div class="preview-section">
+        <h2 class="title">⭐ Perfect Week Bonuses (3/3 Correct)</h2>
+        
+        <div class="flame-row">
+            <span class="user-name">John</span>
+            <span class="flame-red">🔥🔥</span><span class="perfect-star">⭐</span>
+            <span class="streak-info">3-week streak + 1 perfect week</span>
+        </div>
+        
+        <div class="flame-row">
+            <span class="user-name">Con</span>
+            <span class="flame-purple">🔥🔥🔥</span><span class="perfect-star">💫</span>
+            <span class="streak-info">4-week streak + 2 perfect weeks</span>
+        </div>
+        
+        <div class="flame-row">
+            <span class="user-name">Max</span>
+            <span class="flame-white-hot">🔥🔥🔥🔥</span><span class="perfect-crown pulse">👑</span>
+            <span class="streak-info">5-week streak + 3 perfect weeks (KING!)</span>
+        </div>
+    </div>
+
+    <div class="preview-section">
+        <h2 class="title">❄️ Cold Streaks (0-1 Correct Picks)</h2>
+        
+        <div class="flame-row">
+            <span class="user-name">Jacob</span>
+            <span class="flame-cold">🔥</span>
+            <span class="streak-info">2-week cold streak (Blue - Struggling)</span>
+        </div>
+        
+        <div class="flame-row">
+            <span class="user-name">Nathan</span>
+            <span style="color: #60a5fa; font-size: 1.2em;">❄️❄️</span>
+            <span class="streak-info">3-week cold streak (Ice cold!)</span>
+        </div>
+    </div>
+
+    <div class="preview-section">
+        <h2 class="title">📊 In Pick Chart Context</h2>
+        
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead style="background: #f9fafb;">
+                <tr>
+                    <th style="padding: 8px; text-align: left; border: 1px solid #e5e7eb;">User</th>
+                    <th style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">Total</th>
+                    <th style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">%</th>
+                    <th style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">W1</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;">
+                        Jacob <span class="flame-red flame-animated">🔥🔥</span><span class="perfect-star">⭐</span>
+                    </td>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb; font-weight: bold;">8</td>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb; font-weight: bold;">89%</td>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">3/3</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;">
+                        Nathan <span class="flame-orange">🔥</span>
+                    </td>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb; font-weight: bold;">5</td>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb; font-weight: bold;">83%</td>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">2/3</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #e5e7eb;">
+                        Shane <span style="color: #60a5fa; font-size: 1.1em;">❄️</span>
+                    </td>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb; font-weight: bold;">1</td>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb; font-weight: bold;">17%</td>
+                    <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">1/3</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem; color: #6b7280;">
+        <p>🔥 Preview of streak flames for NFL Spread League 🔥</p>
+        <p>Visit: <a href="/" style="color: #3b82f6;">Back to App</a></p>
+    </div>
+</body>
+</html>
