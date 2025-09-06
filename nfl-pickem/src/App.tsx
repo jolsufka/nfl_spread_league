@@ -44,6 +44,7 @@ function App() {
     { id: 'nathan', name: 'Nathan', total: 0, percentage: 0 },
     { id: 'shane', name: 'Shane', total: 0, percentage: 0 },
     { id: 'max', name: 'Max', total: 0, percentage: 0 },
+    { id: 'john', name: 'John', total: 0, percentage: 0 },
   ]);
   const [picks, setPicks] = useState<Pick[]>([]);
   const [currentWeek, setCurrentWeek] = useState(1);
