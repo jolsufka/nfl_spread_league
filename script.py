@@ -119,7 +119,7 @@ def main():
     ap.add_argument("--week1-start-et", help='NFL Week 1 start ET (e.g., "2025-09-02 08:00")')
     ap.add_argument("--week", type=int, help="NFL week number (1..postseason as you define)")
     ap.add_argument("--days", type=int, default=7, help="Length of window in days (default 7).")
-    ap.add_argument("--csv", default="nfl_lines_week.csv", help="Output CSV path.")
+    ap.add_argument("--csv", help="Output CSV path (if not specified, uses nfl_lines_week{N}.csv format).")
     args = ap.parse_args()
 
     if not args.api_key:
@@ -129,10 +129,19 @@ def main():
     if args.start_et:
         start = tz.localize(dt.datetime.strptime(args.start_et, "%Y-%m-%d %H:%M"))
         end = start + dt.timedelta(days=args.days, seconds=-1)
+        week_num = None
     elif args.week1_start_et and args.week:
         start, end = week_window_from_weeknum(args.week1_start_et, args.week)
+        week_num = args.week
     else:
         sys.exit("Provide either --start-et OR (--week1-start-et AND --week).")
+
+    # Auto-generate CSV filename if not provided
+    if not args.csv:
+        if week_num:
+            args.csv = f"nfl_lines_week{week_num}.csv"
+        else:
+            args.csv = "nfl_lines_week.csv"
 
     t_from = iso_z(start)
     t_to   = iso_z(end)

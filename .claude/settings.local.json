@@ -3,7 +3,16 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(npm start)",
-      "Bash(PORT=3001 npm start)"
+      "Bash(PORT=3001 npm start)",
+      "Bash(git push:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "WebSearch",
+      "Bash(pip install:*)",
+      "Bash(python3:*)",
+      "WebFetch(domain:jolsufka.github.io)",
+      "Bash(npm run deploy:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
