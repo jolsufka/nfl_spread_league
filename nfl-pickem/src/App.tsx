@@ -48,7 +48,11 @@ function App() {
   ]);
   const [picks, setPicks] = useState<Pick[]>([]);
   const [currentWeek, setCurrentWeek] = useState(2);
-  const [selectedUser, setSelectedUser] = useState<string>('jacob');
+  const [selectedUser, setSelectedUser] = useState<string>(() => {
+    // Check localStorage for previously selected user
+    const savedUser = localStorage.getItem('nfl-pickem-user');
+    return savedUser || ''; // Empty string forces user selection
+  });
   const [activeTab, setActiveTab] = useState<'picks' | 'leaderboard' | 'chart' | 'history' | 'insights'>('picks');
   const [teamAbbreviations, setTeamAbbreviations] = useState<{[key: string]: string}>({});
 
@@ -244,9 +248,21 @@ function App() {
               </label>
               <select
                 value={selectedUser}
-                onChange={(e) => setSelectedUser(e.target.value)}
+                onChange={(e) => {
+                  const newUser = e.target.value;
+                  setSelectedUser(newUser);
+                  // Save to localStorage when user changes selection
+                  if (newUser) {
+                    localStorage.setItem('nfl-pickem-user', newUser);
+                  }
+                }}
                 className="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               >
+                {!selectedUser && (
+                  <option value="" disabled>
+                    Select your name...
+                  </option>
+                )}
                 {users.map(user => (
                   <option key={user.id} value={user.id}>
                     {user.name}
@@ -261,13 +277,15 @@ function App() {
         {activeTab === 'picks' && (
           <div className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-              {users.find(u => u.id === selectedUser)?.name}'s Picks - Week {currentWeek}
+              {selectedUser ? `${users.find(u => u.id === selectedUser)?.name}'s Picks - Week ${currentWeek}` : `Week ${currentWeek} Picks`}
             </h2>
             
             <PickInterface
               games={games}
               currentPicks={getCurrentUserPicks()?.picks || []}
               onSavePicks={(picks) => savePicks(selectedUser, currentWeek, picks)}
+              selectedUser={selectedUser}
+              users={users}
             />
           </div>
         )}
@@ -312,9 +330,11 @@ interface PickInterfaceProps {
   games: Game[];
   currentPicks: TeamPick[];
   onSavePicks: (picks: TeamPick[]) => void;
+  selectedUser: string;
+  users: User[];
 }
 
-function PickInterface({ games, currentPicks, onSavePicks }: PickInterfaceProps) {
+function PickInterface({ games, currentPicks, onSavePicks, selectedUser, users }: PickInterfaceProps) {
   const [selectedPicks, setSelectedPicks] = useState<TeamPick[]>(currentPicks);
   const [hasExistingPicks, setHasExistingPicks] = useState<boolean>(currentPicks.length > 0);
   
@@ -379,12 +399,14 @@ function PickInterface({ games, currentPicks, onSavePicks }: PickInterfaceProps)
   };
 
   const getButtonText = () => {
+    const userName = users.find(u => u.id === selectedUser)?.name || 'Unknown User';
+    
     if (!hasExistingPicks) {
-      return `Save Picks (${selectedPicks.length}/3)`;
+      return `Save Picks for ${userName} (${selectedPicks.length}/3)`;
     } else if (arePicksModified()) {
-      return `Update Picks (${selectedPicks.length}/3)`;
+      return `Update Picks for ${userName} (${selectedPicks.length}/3)`;
     } else {
-      return `Picks Saved (${selectedPicks.length}/3)`;
+      return `Picks Saved for ${userName} (${selectedPicks.length}/3)`;
     }
   };
 
@@ -466,12 +488,18 @@ function PickInterface({ games, currentPicks, onSavePicks }: PickInterfaceProps)
   return (
     <div>
       <div className="mb-4">
-        <p className="text-sm text-gray-600">
-          {hasExistingPicks 
-            ? `Update your picks - Select exactly 3 teams (${selectedPicks.length}/3 selected)`
-            : `Select exactly 3 teams (${selectedPicks.length}/3 selected)`
-          }
-        </p>
+        {!selectedUser ? (
+          <p className="text-sm text-red-600 font-medium">
+            ⚠️ Please select your name from the dropdown above before making picks
+          </p>
+        ) : (
+          <p className="text-sm text-gray-600">
+            {hasExistingPicks 
+              ? `Update your picks - Select exactly 3 teams (${selectedPicks.length}/3 selected)`
+              : `Select exactly 3 teams (${selectedPicks.length}/3 selected)`
+            }
+          </p>
+        )}
         {hasExistingPicks && !arePicksModified() && selectedPicks.length === 3 && (
           <p className="text-sm text-green-600 mt-1">
             ✓ Your picks have been saved. Make changes to update them.
@@ -604,9 +632,9 @@ function PickInterface({ games, currentPicks, onSavePicks }: PickInterfaceProps)
 
       <button
         onClick={handleSave}
-        disabled={selectedPicks.length !== 3 || (hasExistingPicks && !arePicksModified())}
+        disabled={!selectedUser || selectedPicks.length !== 3 || (hasExistingPicks && !arePicksModified())}
         className={`w-full py-2 px-4 rounded-md ${
-          selectedPicks.length !== 3 
+          !selectedUser || selectedPicks.length !== 3 
             ? 'bg-gray-400 text-white cursor-not-allowed'
             : hasExistingPicks && !arePicksModified()
               ? 'bg-green-600 text-white cursor-not-allowed'
