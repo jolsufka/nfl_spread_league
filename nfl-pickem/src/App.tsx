@@ -1579,11 +1579,26 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
           complete: (results) => {
             const week2Data = results.data.map((row: any) => ({ ...row, week: 2 }));
             allResults.push(...week2Data);
-            setResultsData(allResults);
           }
         });
       } catch (e) {
         console.log('Week 2 results not available');
+      }
+
+      // Load Week 3 results
+      try {
+        const week3Response = await fetch(`${process.env.PUBLIC_URL}/nfl_results_week3.csv`);
+        const week3Text = await week3Response.text();
+        Papa.parse(week3Text, {
+          header: true,
+          complete: (results) => {
+            const week3Data = results.data.map((row: any) => ({ ...row, week: 3 }));
+            allResults.push(...week3Data);
+            setResultsData(allResults);
+          }
+        });
+      } catch (e) {
+        console.log('Week 3 results not available');
         setResultsData(allResults);
       }
     } catch (error) {
