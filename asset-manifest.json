@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/nfl_spread_league/static/css/main.ba3c3b92.css",
-    "main.js": "/nfl_spread_league/static/js/main.2aa14e39.js",
+    "main.js": "/nfl_spread_league/static/js/main.89ce0adf.js",
     "static/js/453.0bc7015d.chunk.js": "/nfl_spread_league/static/js/453.0bc7015d.chunk.js",
     "index.html": "/nfl_spread_league/index.html",
     "main.ba3c3b92.css.map": "/nfl_spread_league/static/css/main.ba3c3b92.css.map",
-    "main.2aa14e39.js.map": "/nfl_spread_league/static/js/main.2aa14e39.js.map",
+    "main.89ce0adf.js.map": "/nfl_spread_league/static/js/main.89ce0adf.js.map",
     "453.0bc7015d.chunk.js.map": "/nfl_spread_league/static/js/453.0bc7015d.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.ba3c3b92.css",
-    "static/js/main.2aa14e39.js"
+    "static/js/main.89ce0adf.js"
   ]
 }
