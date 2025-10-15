@@ -47,7 +47,7 @@ function App() {
     { id: 'john', name: 'John', total: 0, percentage: 0 },
   ]);
   const [picks, setPicks] = useState<Pick[]>([]);
-  const [currentWeek, setCurrentWeek] = useState(6);
+  const [currentWeek, setCurrentWeek] = useState(7);
   const [selectedUser, setSelectedUser] = useState<string>(() => {
     // Check localStorage for previously selected user
     const savedUser = localStorage.getItem('nfl-pickem-user');
