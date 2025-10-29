@@ -12,7 +12,10 @@
       "Bash(python3:*)",
       "WebFetch(domain:jolsufka.github.io)",
       "Bash(npm run deploy:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npm run build:*)",
+      "Bash(git commit:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

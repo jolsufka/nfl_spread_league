@@ -43,7 +43,7 @@ def extract_picks_for_week(week: int) -> pd.DataFrame:
 def save_picks_to_csv(picks_df: pd.DataFrame, week: int, output_file: Optional[str] = None) -> str:
     """Save picks DataFrame to CSV in the expected format."""
     if output_file is None:
-        output_file = f"picks_week{week}.csv"
+        output_file = f"data/picks/picks_week{week}.csv"
     
     if picks_df.empty:
         print(f"No picks to save for week {week}")

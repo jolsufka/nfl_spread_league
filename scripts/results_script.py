@@ -217,9 +217,9 @@ def main():
     
     # Auto-generate filenames if not provided
     if not args.odds_csv:
-        args.odds_csv = f"nfl_lines_week{args.week}.csv"
+        args.odds_csv = f"data/lines/nfl_lines_week{args.week}.csv"
     if not args.results_csv:
-        args.results_csv = f"nfl_results_week{args.week}.csv"
+        args.results_csv = f"data/results/nfl_results_week{args.week}.csv"
     
     print(f"Fetching results for Week {args.week}...")
     print(f"Using odds file: {args.odds_csv}")
@@ -235,7 +235,7 @@ def main():
             print("No picks found in Supabase for this week")
             return
     elif not args.picks_csv:
-        args.picks_csv = f"picks_week{args.week}.csv"
+        args.picks_csv = f"data/picks/picks_week{args.week}.csv"
     
     print(f"Using picks file: {args.picks_csv}")
     
@@ -286,7 +286,7 @@ def main():
                     print(f"  {pick['team']} vs {pick['opponent']}: {pick['result']}")
             
             # Save pick results
-            picks_results_csv = f"pick_results_week{args.week}.csv"
+            picks_results_csv = f"data/pick_results/pick_results_week{args.week}.csv"
             user_results.to_csv(picks_results_csv, index=False)
             print(f"Pick results saved to: {picks_results_csv}")
             

@@ -139,9 +139,9 @@ def main():
     # Auto-generate CSV filename if not provided
     if not args.csv:
         if week_num:
-            args.csv = f"nfl_lines_week{week_num}.csv"
+            args.csv = f"data/lines/nfl_lines_week{week_num}.csv"
         else:
-            args.csv = "nfl_lines_week.csv"
+            args.csv = "data/lines/nfl_lines_week.csv"
 
     t_from = iso_z(start)
     t_to   = iso_z(end)
