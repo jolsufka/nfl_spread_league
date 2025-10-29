@@ -42,6 +42,20 @@ else
     echo "❌ NFL Results Processor skill not found"
 fi
 
+# Check deploy skill
+if [ -f ".skills/nfl-deploy/SKILL.md" ]; then
+    echo "✅ NFL Deploy skill found"
+    
+    # Validate YAML frontmatter
+    if grep -q "name: nfl-deploy" .skills/nfl-deploy/SKILL.md; then
+        echo "✅ Deploy skill has correct name"
+    else
+        echo "❌ Deploy skill missing correct name"
+    fi
+else
+    echo "❌ NFL Deploy skill not found"
+fi
+
 # Check prerequisites
 echo ""
 echo "🔧 Checking Prerequisites"
@@ -74,5 +88,6 @@ echo "==============="
 echo "You can now use:"
 echo '• "Set up Week X" - Automates weekly setup'
 echo '• "Process Week X results" - Automates results processing'
+echo '• "Deploy the app" - Automates testing, building, and deployment'
 echo ""
 echo "Skills will only activate when Claude detects relevant tasks."
