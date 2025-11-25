@@ -697,7 +697,7 @@ function Leaderboard({ users, picks }: LeaderboardProps) {
   };
 
   // Create leaderboard data with calculated stats
-  const leaderboardData = users.map(user => ({
+  const sortedData = users.map(user => ({
     id: user.id,
     name: user.name,
     totalCorrect: getUserTotalCorrect(user.id),
@@ -710,6 +710,24 @@ function Leaderboard({ users, picks }: LeaderboardProps) {
     }
     return b.totalCorrect - a.totalCorrect;
   });
+
+  // Add standard competition ranking (1224 ranking)
+  const leaderboardData: Array<typeof sortedData[0] & { rank: number }> = [];
+  for (let i = 0; i < sortedData.length; i++) {
+    let rank = 1;
+    if (i > 0) {
+      const prevUser = leaderboardData[i - 1];
+      const currentUser = sortedData[i];
+      
+      // If stats are the same as previous user, use same rank
+      if (prevUser.percentage === currentUser.percentage && prevUser.totalCorrect === currentUser.totalCorrect) {
+        rank = prevUser.rank;
+      } else {
+        rank = i + 1;
+      }
+    }
+    leaderboardData.push({ ...sortedData[i], rank });
+  }
 
   // Group stats
   const groupStats = {
@@ -763,14 +781,15 @@ function Leaderboard({ users, picks }: LeaderboardProps) {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {leaderboardData.map((user, index) => {
-              const isTopPerformer = index === 0 && user.percentage > 0;
+            {leaderboardData.map((user) => {
+              const isTopPerformer = user.rank === 1 && user.percentage > 0;
               return (
                 <tr key={user.id} className={isTopPerformer ? 'bg-yellow-50' : ''}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     <div className="flex items-center">
-                      {index === 0 && user.percentage > 0 && <span className="text-yellow-500 mr-2">🏆</span>}
-                      #{index + 1}
+                      {user.rank === 1 && user.percentage > 0 && <span className="text-yellow-500 mr-2">🏆</span>}
+                      {user.rank === Math.max(...leaderboardData.map(u => u.rank)) && leaderboardData.length > 1 && <span className="text-red-500 mr-2">🤡</span>}
+                      #{user.rank}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
