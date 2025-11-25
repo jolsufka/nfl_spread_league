@@ -684,9 +684,9 @@ function Leaderboard({ users, picks }: LeaderboardProps) {
   };
 
   const getUserTotalPicks = (userId: string) => {
-    // Only count picks that have been graded (correct is not null/undefined)
+    // Count all picks made (including pushes)
     return picks.filter(p => p.userId === userId).reduce((sum, pick) => {
-      return sum + pick.picks.filter(teamPick => teamPick.correct !== null && teamPick.correct !== undefined).length;
+      return sum + pick.picks.length;
     }, 0);
   };
 
@@ -816,9 +816,9 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
   };
 
   const getUserTotalPicks = (userId: string) => {
-    // Only count picks that have been graded (correct is not null/undefined)
+    // Count all picks made (including pushes)
     return picks.filter(p => p.userId === userId).reduce((sum, pick) => {
-      return sum + pick.picks.filter(teamPick => teamPick.correct !== null && teamPick.correct !== undefined).length;
+      return sum + pick.picks.length;
     }, 0);
   };
 
@@ -943,7 +943,7 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
                             );
                           })}
                           <div className="font-semibold text-gray-700 text-xs mt-1 pt-1 border-t border-gray-200">
-                            {weekPick.correct}/3
+                            {weekPick.correct}/{weekPick.picks.length}
                           </div>
                         </div>
                       ) : (
@@ -1068,7 +1068,7 @@ function PickHistory({ picks, selectedUser, currentWeek, games }: PickHistoryPro
                   {weekPick?.picks[2] ? getPickInfo(weekPick.picks[2]) : '-'}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                  {weekPick ? `${weekPick.correct}/3` : '-'}
+                  {weekPick ? `${weekPick.correct}/${weekPick.picks.length}` : '-'}
                 </td>
               </tr>
             );
