@@ -696,13 +696,25 @@ function Leaderboard({ users, picks }: LeaderboardProps) {
     return Math.round((getUserTotalCorrect(userId) / total) * 100);
   };
 
+  const getUserLast5WeeksPercentage = (userId: string, currentWeek: number) => {
+    const last5Weeks = Math.max(1, currentWeek - 4);
+    const recentPicks = picks.filter(p => p.userId === userId && p.week >= last5Weeks && p.week <= currentWeek);
+    
+    const recentCorrect = recentPicks.reduce((sum, pick) => sum + pick.correct, 0);
+    const recentTotal = recentPicks.reduce((sum, pick) => sum + pick.picks.length, 0);
+    
+    if (recentTotal === 0) return 0;
+    return Math.round((recentCorrect / recentTotal) * 100);
+  };
+
   // Create leaderboard data with calculated stats
   const sortedData = users.map(user => ({
     id: user.id,
     name: user.name,
     totalCorrect: getUserTotalCorrect(user.id),
     totalPicks: getUserTotalPicks(user.id),
-    percentage: getUserPercentage(user.id)
+    percentage: getUserPercentage(user.id),
+    last5WeeksPercentage: getUserLast5WeeksPercentage(user.id, 13)
   })).sort((a, b) => {
     // Sort by percentage first, then by total correct
     if (b.percentage !== a.percentage) {
@@ -776,7 +788,10 @@ function Leaderboard({ users, picks }: LeaderboardProps) {
                 Total
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Percentage
+                Overall
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Last 5 Weeks
               </th>
             </tr>
           </thead>
@@ -811,11 +826,112 @@ function Leaderboard({ users, picks }: LeaderboardProps) {
                       {user.percentage}%
                     </span>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className={`font-semibold px-2 py-1 rounded ${
+                      user.last5WeeksPercentage >= 60 ? 'bg-green-100 text-green-800' :
+                      user.last5WeeksPercentage >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                      user.last5WeeksPercentage > 0 ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-500'
+                    }`}>
+                      {user.last5WeeksPercentage}%
+                    </span>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+      </div>
+      
+      {/* Heatmap - Weekly Performance */}
+      <div className="mt-8 bg-white rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">🔥 Weekly Performance Heatmap</h3>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: '600px' }}>
+            <div className="grid grid-cols-1 gap-2">
+              {/* Header row */}
+              <div className="grid gap-1" style={{ gridTemplateColumns: '80px repeat(' + 13 + ', 40px)' }}>
+                <div className="text-xs font-medium text-gray-500 p-2">User</div>
+                {Array.from({ length: 13 }, (_, i) => (
+                  <div key={`week-header-${i}`} className="text-xs font-medium text-gray-500 text-center p-2">
+                    W{i + 1}
+                  </div>
+                ))}
+              </div>
+              
+              {/* User rows */}
+              {users.map(user => {
+                const userPicks = picks.filter(p => p.userId === user.id);
+                return (
+                  <div key={user.id} className="grid gap-1" style={{ gridTemplateColumns: '80px repeat(' + 13 + ', 40px)' }}>
+                    <div className="text-sm font-medium text-gray-900 p-2 bg-gray-50 rounded">
+                      {user.name}
+                    </div>
+                    {Array.from({ length: 13 }, (_, i) => {
+                      const weekPick = userPicks.find(p => p.week === i + 1);
+                      const correctCount = weekPick ? weekPick.correct : 0;
+                      
+                      // 4-color palette for 0, 1, 2, 3 correct picks
+                      const getColorClass = (count: number) => {
+                        if (count === 0) return 'bg-red-200'; // 0 correct - Light red
+                        if (count === 1) return 'bg-orange-200'; // 1 correct - Light orange
+                        if (count === 2) return 'bg-yellow-200'; // 2 correct - Light yellow
+                        if (count === 3) return 'bg-green-200'; // 3 correct - Light green
+                        return 'bg-gray-200'; // No picks
+                      };
+                      
+                      const getTextColorClass = (count: number) => {
+                        if (count === 0) return 'text-red-700';
+                        if (count === 1) return 'text-orange-700';
+                        if (count === 2) return 'text-yellow-700';
+                        if (count === 3) return 'text-green-700';
+                        return 'text-gray-500';
+                      };
+                      
+                      return (
+                        <div 
+                          key={`${user.id}-week-${i + 1}`} 
+                          className={`h-8 w-8 rounded text-xs font-bold flex items-center justify-center ${
+                            weekPick ? getColorClass(correctCount) : 'bg-gray-200'
+                          } ${
+                            weekPick ? getTextColorClass(correctCount) : 'text-gray-500'
+                          }`}
+                          title={`${user.name} - Week ${i + 1}: ${weekPick ? `${correctCount}/3 correct` : 'No picks'}`}
+                        >
+                          {weekPick ? correctCount : ''}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Legend */}
+            <div className="mt-4 flex items-center justify-center gap-4 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-red-200 rounded"></div>
+                <span>0 Correct</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-orange-200 rounded"></div>
+                <span>1 Correct</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-yellow-200 rounded"></div>
+                <span>2 Correct</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-green-200 rounded"></div>
+                <span>3 Correct</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-gray-200 rounded"></div>
+                <span>No picks</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
