@@ -79,16 +79,15 @@ def calculate_ats_results(results_df, odds_csv):
     
     odds_df = pd.read_csv(odds_csv)
     odds_df["kickoff_et"] = pd.to_datetime(odds_df["kickoff_et"])
-    
+
     # Merge on team names and approximate kickoff time (within 1 hour)
     merged_games = []
-    
+
     for _, result in results_df.iterrows():
-        # Find matching game in odds data
+        # Find matching game in odds data (match on teams only for simplicity)
         matches = odds_df[
-            (odds_df["home"] == result["home"]) & 
-            (odds_df["away"] == result["away"]) &
-            (abs((odds_df["kickoff_et"] - result["kickoff_et"]).dt.total_seconds()) < 3600)  # Within 1 hour
+            (odds_df["home"] == result["home"]) &
+            (odds_df["away"] == result["away"])
         ]
         
         if matches.empty:

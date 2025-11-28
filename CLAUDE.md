@@ -135,17 +135,19 @@ python3 scripts/supabase_integration.py
 ### Deployment
 - **Frontend**: Auto-deployed to GitHub Pages via `npm run deploy` at https://jolsufka.github.io/nfl_spread_league
 - **Database**: Hosted on Supabase with public read access for picks table
-- **Static Assets**: CSV files and team data in `nfl-pickem/public/`
+- **Static Assets**: CSV files in organized folders and team data in `nfl-pickem/public/`
+  - `nfl-pickem/public/lines/`: NFL odds/lines CSV files
+  - `nfl-pickem/public/results/`: NFL game results CSV files
 - **User State**: Persisted locally via browser localStorage for seamless user experience
 
 ## Weekly Workflow
 
 1. **Fetch Odds**: `python3 scripts/script.py --api-key $(cat .api_key) --week1-start-et "2025-09-02 08:00" --week N`
-2. **Copy to App**: `cp data/lines/nfl_lines_weekN.csv nfl-pickem/public/`
+2. **Copy to App**: `cp data/lines/nfl_lines_weekN.csv nfl-pickem/public/lines/`
 3. **Update App**: Change `currentWeek` and CSV filename in `App.tsx`
 4. **Deploy**: `cd nfl-pickem && npm run deploy`
 5. **Process Results**: `python3 scripts/results_script.py --api-key $(cat .api_key) --week N --week1-start-et "2025-09-02 08:00"`
-6. **Copy Results**: `cp data/results/nfl_results_weekN.csv nfl-pickem/public/`
+6. **Copy Results**: `cp data/results/nfl_results_weekN.csv nfl-pickem/public/results/`
 
 ## Key Features
 - **Local User Persistence**: Selected user automatically saved and restored across sessions
