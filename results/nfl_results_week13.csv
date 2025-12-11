@@ -1,16 +1,16 @@
 kickoff_et,away,home,away_score,home_score,actual_margin,home_spread,away_spread,home_ats_margin,home_ats_result,away_ats_result,total,actual_total,over_under
-2025-11-27 13:00:00-05:00,Green Bay Packers,Detroit Lions,31,24,-7,-2.5,2.5,4.5,L,W,48.5,55,Over
-2025-11-27 16:30:00-05:00,Kansas City Chiefs,Dallas Cowboys,28,31,3,3.5,-3.5,-0.5,L,W,52.5,59,Over
-2025-11-27 20:20:00-05:00,Cincinnati Bengals,Baltimore Ravens,32,14,-18,7.0,-7.0,-25.0,L,W,51.5,46,Under
-2025-11-28 15:00:00-05:00,Chicago Bears,Philadelphia Eagles,24,15,-9,7.0,-7.0,-16.0,L,W,44.5,39,Under
-2025-11-30 13:00:00-05:00,Arizona Cardinals,Tampa Bay Buccaneers,17,20,3,-3.0,3.0,0.0,W,L,44.5,37,Under
-2025-11-30 13:00:00-05:00,New York Jets,Atlanta Falcons,27,24,-3,2.5,-2.5,-5.5,L,W,39.5,51,Over
-2025-11-30 13:00:00-05:00,Los Angeles Rams,Carolina Panthers,28,31,3,10.5,-10.5,-7.5,L,W,44.5,59,Over
-2025-11-30 13:00:00-05:00,San Francisco 49ers,Cleveland Browns,26,8,-18,-4.5,4.5,-13.5,L,W,37.5,34,Under
-2025-11-30 13:00:00-05:00,Houston Texans,Indianapolis Colts,20,16,-4,-4.5,4.5,-0.5,W,L,44.5,36,Under
-2025-11-30 13:00:00-05:00,Minnesota Vikings,Seattle Seahawks,0,26,26,-10.5,10.5,15.5,W,L,41.5,26,Under
-2025-11-30 13:00:00-05:00,New Orleans Saints,Miami Dolphins,17,21,4,-6.0,6.0,-2.0,W,L,41.5,38,Under
-2025-11-30 16:25:00-05:00,Buffalo Bills,Pittsburgh Steelers,26,7,-19,-3.5,3.5,-15.5,L,W,47.5,33,Under
-2025-11-30 16:25:00-05:00,Las Vegas Raiders,Los Angeles Chargers,14,31,17,-10.0,10.0,7.0,W,L,41.5,45,Over
-2025-11-30 20:20:00-05:00,Denver Broncos,Washington Commanders,27,26,-1,-6.5,6.5,-7.5,W,L,43.5,53,Over
-2025-12-01 20:15:00-05:00,New York Giants,New England Patriots,15,33,18,-7.0,7.0,11.0,W,L,46.5,48,Over
+2025-11-27 13:00:00-05:00,Green Bay Packers,Detroit Lions,31,24,-7,-2.5,2.5,-4.5,L,W,48.5,55,Over
+2025-11-27 16:30:00-05:00,Kansas City Chiefs,Dallas Cowboys,28,31,3,3.5,-3.5,-0.5,L,L,52.5,59,Over
+2025-11-27 20:20:00-05:00,Cincinnati Bengals,Baltimore Ravens,32,14,-18,-7.0,7.0,-11.0,L,W,51.5,46,Under
+2025-11-28 15:00:00-05:00,Chicago Bears,Philadelphia Eagles,24,15,-9,-7.0,7.0,-2.0,L,W,44.5,39,Under
+2025-11-30 13:00:00-05:00,Arizona Cardinals,Tampa Bay Buccaneers,17,20,3,-3.0,3.0,0.0,P,P,44.5,37,Under
+2025-11-30 13:00:00-05:00,Atlanta Falcons,New York Jets,24,27,3,2.5,-2.5,0.5,W,L,39.5,51,Over
+2025-11-30 13:00:00-05:00,Los Angeles Rams,Carolina Panthers,28,31,3,10.5,-10.5,-7.5,L,L,44.5,59,Over
+2025-11-30 13:00:00-05:00,San Francisco 49ers,Cleveland Browns,26,8,-18,4.5,-4.5,-22.5,L,W,37.5,34,Under
+2025-11-30 13:00:00-05:00,Houston Texans,Indianapolis Colts,20,16,-4,-4.5,4.5,0.5,L,L,44.5,36,Under
+2025-11-30 13:00:00-05:00,New Orleans Saints,Miami Dolphins,17,21,4,-6.0,6.0,10.0,L,L,41.5,38,Under
+2025-11-30 16:05:00-05:00,Minnesota Vikings,Seattle Seahawks,0,26,26,-10.5,10.5,36.5,W,L,41.5,26,Under
+2025-11-30 16:25:00-05:00,Buffalo Bills,Pittsburgh Steelers,26,7,-19,3.5,-3.5,-22.5,L,W,47.5,33,Under
+2025-11-30 16:25:00-05:00,Las Vegas Raiders,Los Angeles Chargers,14,31,17,-10.0,10.0,27.0,W,L,41.5,45,Over
+2025-11-30 20:20:00-05:00,Denver Broncos,Washington Commanders,27,26,-1,6.5,-6.5,-7.5,L,L,43.5,53,Over
+2025-12-01 20:15:00-05:00,New York Giants,New England Patriots,15,33,18,-7.0,7.0,25.0,W,L,46.5,48,Over

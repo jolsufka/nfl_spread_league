@@ -1,0 +1,195 @@
+# NFL Team Stadium Information
+# Stadium types: dome (fixed roof), retractable (retractable roof), outdoor (open air)
+
+teams:
+  Arizona Cardinals:
+    stadium: State Farm Stadium
+    city: Glendale
+    state: AZ
+    type: retractable
+
+  Atlanta Falcons:
+    stadium: Mercedes-Benz Stadium
+    city: Atlanta
+    state: GA
+    type: retractable
+
+  Baltimore Ravens:
+    stadium: M&T Bank Stadium
+    city: Baltimore
+    state: MD
+    type: outdoor
+
+  Buffalo Bills:
+    stadium: Highmark Stadium
+    city: Orchard Park
+    state: NY
+    type: outdoor
+
+  Carolina Panthers:
+    stadium: Bank of America Stadium
+    city: Charlotte
+    state: NC
+    type: outdoor
+
+  Chicago Bears:
+    stadium: Soldier Field
+    city: Chicago
+    state: IL
+    type: outdoor
+
+  Cincinnati Bengals:
+    stadium: Paycor Stadium
+    city: Cincinnati
+    state: OH
+    type: outdoor
+
+  Cleveland Browns:
+    stadium: Cleveland Browns Stadium
+    city: Cleveland
+    state: OH
+    type: outdoor
+
+  Dallas Cowboys:
+    stadium: AT&T Stadium
+    city: Arlington
+    state: TX
+    type: retractable
+
+  Denver Broncos:
+    stadium: Empower Field at Mile High
+    city: Denver
+    state: CO
+    type: outdoor
+
+  Detroit Lions:
+    stadium: Ford Field
+    city: Detroit
+    state: MI
+    type: dome
+
+  Green Bay Packers:
+    stadium: Lambeau Field
+    city: Green Bay
+    state: WI
+    type: outdoor
+
+  Houston Texans:
+    stadium: NRG Stadium
+    city: Houston
+    state: TX
+    type: retractable
+
+  Indianapolis Colts:
+    stadium: Lucas Oil Stadium
+    city: Indianapolis
+    state: IN
+    type: retractable
+
+  Jacksonville Jaguars:
+    stadium: TIAA Bank Field
+    city: Jacksonville
+    state: FL
+    type: outdoor
+
+  Kansas City Chiefs:
+    stadium: Arrowhead Stadium
+    city: Kansas City
+    state: MO
+    type: outdoor
+
+  Las Vegas Raiders:
+    stadium: Allegiant Stadium
+    city: Las Vegas
+    state: NV
+    type: dome
+
+  Los Angeles Chargers:
+    stadium: SoFi Stadium
+    city: Inglewood
+    state: CA
+    type: dome
+
+  Los Angeles Rams:
+    stadium: SoFi Stadium
+    city: Inglewood
+    state: CA
+    type: dome
+
+  Miami Dolphins:
+    stadium: Hard Rock Stadium
+    city: Miami Gardens
+    state: FL
+    type: outdoor
+
+  Minnesota Vikings:
+    stadium: U.S. Bank Stadium
+    city: Minneapolis
+    state: MN
+    type: dome
+
+  New England Patriots:
+    stadium: Gillette Stadium
+    city: Foxborough
+    state: MA
+    type: outdoor
+
+  New Orleans Saints:
+    stadium: Caesars Superdome
+    city: New Orleans
+    state: LA
+    type: dome
+
+  New York Giants:
+    stadium: MetLife Stadium
+    city: East Rutherford
+    state: NJ
+    type: outdoor
+
+  New York Jets:
+    stadium: MetLife Stadium
+    city: East Rutherford
+    state: NJ
+    type: outdoor
+
+  Philadelphia Eagles:
+    stadium: Lincoln Financial Field
+    city: Philadelphia
+    state: PA
+    type: outdoor
+
+  Pittsburgh Steelers:
+    stadium: Acrisure Stadium
+    city: Pittsburgh
+    state: PA
+    type: outdoor
+
+  San Francisco 49ers:
+    stadium: Levi's Stadium
+    city: Santa Clara
+    state: CA
+    type: outdoor
+
+  Seattle Seahawks:
+    stadium: Lumen Field
+    city: Seattle
+    state: WA
+    type: outdoor
+
+  Tampa Bay Buccaneers:
+    stadium: Raymond James Stadium
+    city: Tampa
+    state: FL
+    type: outdoor
+
+  Tennessee Titans:
+    stadium: Nissan Stadium
+    city: Nashville
+    state: TN
+    type: outdoor
+
+  Washington Commanders:
+    stadium: Northwest Stadium
+    city: Landover
+    state: MD
+    type: outdoor
