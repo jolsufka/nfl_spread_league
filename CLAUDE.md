@@ -168,15 +168,21 @@ This project uses Claude Code Skills to provide specialized capabilities. Skills
 ### Current Skills
 - **spread-analysis**: NFL point spread analysis and calculation. Essential for accurate ATS (Against The Spread) results and avoiding common spread calculation mistakes.
 - **nfl-deploy**: Complete deployment workflow with testing, building, and validation for the React app.
+- **nfl-results-processor**: Processes completed NFL games, updates pick accuracy in Supabase, and generates results files.
+- **nfl-week-setup**: Automates the complete weekly setup process including fetching odds, organizing files, and deploying the app.
 
 ### Skill Directory Structure
 ```
 .claude/skills/
 ├── spread-analysis/
 │   └── SKILL.md           # NFL spread calculation guidance
-└── nfl-deploy/
-    ├── SKILL.md           # Deployment workflow
-    └── deploy-validator.sh # Deployment validation script
+├── nfl-deploy/
+│   ├── SKILL.md           # Deployment workflow
+│   └── deploy-validator.sh # Deployment validation script
+├── nfl-results-processor/
+│   └── SKILL.md           # Results processing automation
+└── nfl-week-setup/
+    └── SKILL.md           # Weekly setup automation
 ```
 
 ### Creating New Skills
@@ -198,6 +204,8 @@ allowed-tools: ["Bash", "Read", "Write"]  # Optional tool restrictions
 ### Skill Usage Guidelines
 - **spread-analysis**: Use when evaluating NFL game results, calculating ATS outcomes, or processing betting data
 - **nfl-deploy**: Use for complete app deployment with testing and validation
+- **nfl-results-processor**: Use when processing completed games, updating pick accuracy, or generating results reports
+- **nfl-week-setup**: Use when setting up new week odds, updating app configuration, or automating weekly workflows
 - Skills automatically activate based on context and description keywords
 
 # Important Instructions
