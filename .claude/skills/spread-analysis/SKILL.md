@@ -1,4 +1,9 @@
-# Spread Analysis Skill
+---
+name: spread-analysis
+description: NFL point spread analysis and calculation. Use when evaluating NFL game results against point spreads, determining if picks covered, calculating ATS results, or processing betting outcomes. Essential for accurate spread calculations and avoiding common mistakes.
+---
+
+# NFL Spread Analysis Skill
 
 ## Purpose
 This skill provides comprehensive guidance on evaluating NFL point spreads to ensure accurate analysis and avoid common mistakes when determining if picks are correct.
@@ -14,6 +19,7 @@ This skill provides comprehensive guidance on evaluating NFL point spreads to en
 1. **Favorites (negative spreads)** must WIN by MORE than the spread
 2. **Underdogs (positive spreads)** cover if they WIN or lose by LESS than the spread
 3. **Exact spread margin** = Push (no winner/loser)
+4. **IMPORTANT**: Pushes count as picks made and are included in total for win percentage calculations
 
 ## Examples
 
@@ -54,7 +60,7 @@ This skill provides comprehensive guidance on evaluating NFL point spreads to en
 ### Step 4: Determine Result
 - Cover = Correct pick ✅
 - No cover = Incorrect pick ❌
-- Push = Typically no action (depends on league rules)
+- Push = Counts as pick made, no win awarded (stored as NULL in database)
 
 ## Common Mistakes to Avoid
 
@@ -84,6 +90,19 @@ Before marking any pick as correct/incorrect:
 - [ ] Applied correct spread logic
 - [ ] Double-checked the math
 
+## Push Handling in NFL League System
+
+### Important Push Logic
+- **Pushes COUNT as picks made**: User selected 3 teams, pushes count toward that total
+- **Win percentage calculation**: Wins ÷ Total Picks (including pushes)
+- **Database storage**: Store pushes as `NULL` in the `correct` field
+- **Display format**: Show as "2-1-1" (wins-losses-pushes) with win percentage
+
+### Example Scenarios
+- User picks 3 teams: 2 wins, 1 push → Record: 2-0-1, Win %: 66.7% (2/3)
+- User picks 3 teams: 1 win, 1 loss, 1 push → Record: 1-1-1, Win %: 33.3% (1/3)
+- User picks 3 teams: 3 pushes → Record: 0-0-3, Win %: 0.0% (0/3)
+
 ## Integration with NFL League System
 
 When processing results for the NFL spread league:
@@ -91,8 +110,10 @@ When processing results for the NFL spread league:
 1. **Load spread data** from CSV files in `data/lines/`
 2. **Match team names** exactly as they appear in pick data
 3. **Apply spread logic** using this skill's rules
-4. **Update database** with correct boolean values
-5. **Verify calculations** before finalizing
+4. **Update database** with correct values: TRUE (win), FALSE (loss), NULL (push)
+5. **Calculate win percentages** as wins ÷ total picks (including pushes)
+6. **Display records** showing wins-losses-pushes format with win percentage
+7. **Verify calculations** before finalizing
 
 ## Error Recovery
 

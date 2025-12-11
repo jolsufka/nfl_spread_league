@@ -88,6 +88,7 @@ python3 scripts/supabase_integration.py
   - Processes completed games and determines pick accuracy
   - Updates Supabase `picks.correct` field based on actual outcomes
   - Exports results to `data/results/` and `data/pick_results/` for analysis
+  - **IMPORTANT**: The Odds API only returns completed games from the past 3 days. If running results for older games, you must manually add game results or ask the user for specific game outcomes.
 - **scripts/supabase_integration.py**:
   - Centralized database operations module
   - Functions for extracting picks, updating results, generating leaderboards
@@ -98,6 +99,8 @@ python3 scripts/supabase_integration.py
 2. **User Session**: User selection persisted to localStorage, restored on page load
 3. **Pick Submission**: React app loads games from CSV, validates user selection, saves picks to Supabase
 4. **Results Processing**: Use `scripts/results_script.py` to grade picks after games complete
+   - **IMPORTANT**: Use the `spread-analysis` skill in `.claude/skills/spread-analysis.md` for accurate spread calculations
+   - **Push Handling**: Pushes count as picks made and are included in total for win percentage calculation (stored as NULL in database)
 5. **Analytics**: React app displays real-time analytics from graded picks with advanced insights
 
 ### Key Data Types
@@ -157,6 +160,45 @@ python3 scripts/supabase_integration.py
 - **Responsive Design**: Mobile-friendly interface with touch-optimized interactions
 - **Live Updates**: Real-time leaderboard and pick tracking with Supabase integration
 - **Organized Data Structure**: Clean separation of data types in organized folders
+
+## Claude Code Skills
+
+This project uses Claude Code Skills to provide specialized capabilities. Skills are stored in `.claude/skills/` with proper directory structure.
+
+### Current Skills
+- **spread-analysis**: NFL point spread analysis and calculation. Essential for accurate ATS (Against The Spread) results and avoiding common spread calculation mistakes.
+- **nfl-deploy**: Complete deployment workflow with testing, building, and validation for the React app.
+
+### Skill Directory Structure
+```
+.claude/skills/
+├── spread-analysis/
+│   └── SKILL.md           # NFL spread calculation guidance
+└── nfl-deploy/
+    ├── SKILL.md           # Deployment workflow
+    └── deploy-validator.sh # Deployment validation script
+```
+
+### Creating New Skills
+
+When adding new skills, follow the proper Claude Code structure:
+
+1. **Create skill directory**: `.claude/skills/[skill-name]/`
+2. **Create SKILL.md file** with proper YAML frontmatter:
+```yaml
+---
+name: skill-name  # Lowercase, hyphens only, max 64 chars
+description: Brief description including trigger words and use cases  # Max 1024 chars
+allowed-tools: ["Bash", "Read", "Write"]  # Optional tool restrictions
+---
+```
+3. **Include trigger words** in description for discoverability
+4. **Add supporting files** as needed (scripts, templates, examples)
+
+### Skill Usage Guidelines
+- **spread-analysis**: Use when evaluating NFL game results, calculating ATS outcomes, or processing betting data
+- **nfl-deploy**: Use for complete app deployment with testing and validation
+- Skills automatically activate based on context and description keywords
 
 # Important Instructions
 - ALWAYS use 2025 dates when running scripts (not 2024!)
