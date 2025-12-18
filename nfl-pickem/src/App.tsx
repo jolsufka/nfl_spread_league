@@ -296,7 +296,7 @@ function App() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">
               Leaderboard
             </h2>
-            <Leaderboard users={users} picks={picks} />
+            <Leaderboard users={users} picks={picks} currentWeek={currentWeek} />
           </div>
         )}
 
@@ -660,6 +660,7 @@ function PickInterface({ games, currentPicks, onSavePicks, selectedUser, users }
 interface LeaderboardProps {
   users: User[];
   picks: Pick[];
+  currentWeek: number;
 }
 
 interface PickChartProps {
@@ -678,7 +679,7 @@ interface PickHistoryProps {
   games: Game[];
 }
 
-function Leaderboard({ users, picks }: LeaderboardProps) {
+function Leaderboard({ users, picks, currentWeek }: LeaderboardProps) {
   const getUserTotalCorrect = (userId: string) => {
     return picks.filter(p => p.userId === userId).reduce((sum, pick) => sum + pick.correct, 0);
   };
@@ -714,7 +715,7 @@ function Leaderboard({ users, picks }: LeaderboardProps) {
     totalCorrect: getUserTotalCorrect(user.id),
     totalPicks: getUserTotalPicks(user.id),
     percentage: getUserPercentage(user.id),
-    last5WeeksPercentage: getUserLast5WeeksPercentage(user.id, 13)
+    last5WeeksPercentage: getUserLast5WeeksPercentage(user.id, currentWeek - 1)
   })).sort((a, b) => {
     // Sort by total correct first, then by percentage
     if (b.totalCorrect !== a.totalCorrect) {
@@ -850,24 +851,24 @@ function Leaderboard({ users, picks }: LeaderboardProps) {
           <div style={{ minWidth: '600px' }}>
             <div className="grid grid-cols-1 gap-2">
               {/* Header row */}
-              <div className="grid gap-1" style={{ gridTemplateColumns: '80px repeat(' + 13 + ', 40px)' }}>
+              <div className="grid gap-1" style={{ gridTemplateColumns: '80px repeat(' + (currentWeek - 1) + ', 40px)' }}>
                 <div className="text-xs font-medium text-gray-500 p-2">User</div>
-                {Array.from({ length: 13 }, (_, i) => (
+                {Array.from({ length: currentWeek - 1 }, (_, i) => (
                   <div key={`week-header-${i}`} className="text-xs font-medium text-gray-500 text-center p-2">
                     W{i + 1}
                   </div>
                 ))}
               </div>
-              
+
               {/* User rows */}
               {leaderboardData.map(user => {
                 const userPicks = picks.filter(p => p.userId === user.id);
                 return (
-                  <div key={user.id} className="grid gap-1" style={{ gridTemplateColumns: '80px repeat(' + 13 + ', 40px)' }}>
+                  <div key={user.id} className="grid gap-1" style={{ gridTemplateColumns: '80px repeat(' + (currentWeek - 1) + ', 40px)' }}>
                     <div className="text-sm font-medium text-gray-900 p-2 bg-gray-50 rounded">
                       {user.name}
                     </div>
-                    {Array.from({ length: 13 }, (_, i) => {
+                    {Array.from({ length: currentWeek - 1 }, (_, i) => {
                       const weekPick = userPicks.find(p => p.week === i + 1);
                       const correctCount = weekPick ? weekPick.correct : 0;
                       
