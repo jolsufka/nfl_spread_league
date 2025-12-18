@@ -681,12 +681,13 @@ interface PickHistoryProps {
 
 function Leaderboard({ users, picks, currentWeek }: LeaderboardProps) {
   const getUserTotalCorrect = (userId: string) => {
-    return picks.filter(p => p.userId === userId).reduce((sum, pick) => sum + pick.correct, 0);
+    // Only count completed weeks (exclude current pending week)
+    return picks.filter(p => p.userId === userId && p.week < currentWeek).reduce((sum, pick) => sum + pick.correct, 0);
   };
 
   const getUserTotalPicks = (userId: string) => {
-    // Count all picks made (including pushes)
-    return picks.filter(p => p.userId === userId).reduce((sum, pick) => {
+    // Count all picks made (including pushes), but only from completed weeks
+    return picks.filter(p => p.userId === userId && p.week < currentWeek).reduce((sum, pick) => {
       return sum + pick.picks.length;
     }, 0);
   };
@@ -715,7 +716,7 @@ function Leaderboard({ users, picks, currentWeek }: LeaderboardProps) {
     totalCorrect: getUserTotalCorrect(user.id),
     totalPicks: getUserTotalPicks(user.id),
     percentage: getUserPercentage(user.id),
-    last5WeeksPercentage: getUserLast5WeeksPercentage(user.id, currentWeek - 1)
+    last5WeeksPercentage: getUserLast5WeeksPercentage(user.id, currentWeek)
   })).sort((a, b) => {
     // Sort by total correct first, then by percentage
     if (b.totalCorrect !== a.totalCorrect) {
@@ -940,7 +941,7 @@ function Leaderboard({ users, picks, currentWeek }: LeaderboardProps) {
 
 function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbreviations }: PickChartProps) {
   const weeks = Array.from({ length: currentWeek }, (_, i) => i + 1);
-  
+
   const getPickInfo = (pick: TeamPick) => {
     // Use team abbreviation from YAML mapping
     const teamAbbr = teamAbbreviations[pick.team] || pick.team.split(' ').slice(-1)[0].substring(0, 3).toUpperCase();
@@ -948,12 +949,13 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
   };
 
   const getUserTotalCorrect = (userId: string) => {
-    return picks.filter(p => p.userId === userId).reduce((sum, pick) => sum + pick.correct, 0);
+    // Only count completed weeks (exclude current pending week)
+    return picks.filter(p => p.userId === userId && p.week < currentWeek).reduce((sum, pick) => sum + pick.correct, 0);
   };
 
   const getUserTotalPicks = (userId: string) => {
-    // Count all picks made (including pushes)
-    return picks.filter(p => p.userId === userId).reduce((sum, pick) => {
+    // Count all picks made (including pushes), but only from completed weeks
+    return picks.filter(p => p.userId === userId && p.week < currentWeek).reduce((sum, pick) => {
       return sum + pick.picks.length;
     }, 0);
   };
