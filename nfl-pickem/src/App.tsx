@@ -1015,11 +1015,11 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
       <table className="min-w-full divide-y divide-gray-200 text-xs">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase w-20">User</th>
-            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Total</th>
-            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">%</th>
+            <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 z-20 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ width: '110px', minWidth: '110px', maxWidth: '110px', boxSizing: 'border-box' }}>User</th>
+            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase sticky z-20 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ left: '110px', width: '70px', minWidth: '70px', maxWidth: '70px', boxSizing: 'border-box' }}>Total</th>
+            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase sticky z-20 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-gray-300" style={{ left: '180px', width: '60px', minWidth: '60px', maxWidth: '60px', boxSizing: 'border-box' }}>%</th>
             {weeks.map(week => (
-              <th key={week} className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase border-l border-gray-200">
+              <th key={week} className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase border-l border-gray-200" style={{ width: '120px', minWidth: '120px' }}>
                 W{week}
               </th>
             ))}
@@ -1032,14 +1032,14 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
             const percentage = getUserPercentage(user.id);
             
             return (
-              <tr key={user.id} className="hover:bg-gray-50">
-                <td className="px-1 py-2 whitespace-nowrap text-sm font-medium text-gray-900 w-20">
+              <tr key={user.id} className="group hover:bg-gray-50">
+                <td className="px-1 py-2 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ width: '110px', minWidth: '110px', maxWidth: '110px', boxSizing: 'border-box' }}>
                   {user.name}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-900">
+                <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-900 sticky z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ left: '110px', width: '70px', minWidth: '70px', maxWidth: '70px', boxSizing: 'border-box' }}>
                   {totalCorrect}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-900">
+                <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-900 sticky z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-gray-300" style={{ left: '180px', width: '60px', minWidth: '60px', maxWidth: '60px', boxSizing: 'border-box' }}>
                   {percentage}%
                 </td>
                 {weeks.map(week => {
@@ -1047,7 +1047,7 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
                   const isCurrentWeek = week === currentWeek;
                   
                   return (
-                    <td key={week} className={`px-2 py-2 text-center text-xs border-l border-gray-200 ${isCurrentWeek ? 'bg-blue-50' : ''}`}>
+                    <td key={week} className={`px-3 py-2 text-center text-xs border-l border-gray-200 ${isCurrentWeek ? 'bg-blue-50' : ''}`} style={{ width: '120px', minWidth: '120px' }}>
                       {weekPick ? (
                         <div className="text-left">
                           {weekPick.picks.map((pick, idx) => {
@@ -1057,6 +1057,9 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
                             // For now, if it's week 12 or earlier and result is null, assume it's a push
                             const isPush = isPending && weekPick.week <= 12;
                             const isTrulyPending = isPending && !isPush;
+                            
+                            // Hide all users' picks when game is pending
+                            const shouldHidePick = isTrulyPending;
                             
                             const textColorClass = isPush
                               ? 'text-yellow-600 font-medium'
@@ -1071,10 +1074,10 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
                               <div key={idx} className="border-b border-gray-100 py-1 last:border-b-0">
                                 <div className="flex items-center justify-between">
                                   <span className={`text-xs ${textColorClass}`}>
-                                    {getPickInfo(pick)}
+                                    {shouldHidePick ? '🤷‍♂️' : getPickInfo(pick)}
                                   </span>
                                   <span className="ml-1">
-                                    {resultIcon}
+                                    {shouldHidePick ? '' : resultIcon}
                                   </span>
                                 </div>
                               </div>
@@ -1096,13 +1099,13 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
           
           {/* Group Total Row */}
           <tr className="bg-gray-100 border-t-2 border-gray-300 font-semibold">
-            <td className="px-1 py-2 whitespace-nowrap text-sm font-bold text-gray-900 w-20">
+            <td className="px-1 py-2 whitespace-nowrap text-sm font-bold text-gray-900 sticky left-0 z-10 bg-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ width: '110px', minWidth: '110px', maxWidth: '110px', boxSizing: 'border-box' }}>
               GROUP TOTAL
             </td>
-            <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-bold text-gray-900">
+            <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-bold text-gray-900 sticky z-10 bg-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ left: '110px', width: '70px', minWidth: '70px', maxWidth: '70px', boxSizing: 'border-box' }}>
               {groupTotals.totalCorrect}
             </td>
-            <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-bold text-gray-900">
+            <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-bold text-gray-900 sticky z-10 bg-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-gray-300" style={{ left: '180px', width: '60px', minWidth: '60px', maxWidth: '60px', boxSizing: 'border-box' }}>
               {groupTotals.percentage}%
             </td>
             {weeks.map(week => {
@@ -1110,7 +1113,7 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
               const isCurrentWeek = week === currentWeek;
               
               return (
-                <td key={week} className={`px-2 py-2 text-center text-xs font-bold border-l border-gray-200 ${isCurrentWeek ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                <td key={week} className={`px-3 py-2 text-center text-xs font-bold border-l border-gray-200 ${isCurrentWeek ? 'bg-blue-100' : 'bg-gray-100'}`} style={{ width: '120px', minWidth: '120px' }}>
                   {weekGroupTotals.totalPicks > 0 ? (
                     <div className="text-center">
                       <div className="text-sm font-bold text-gray-900">
@@ -1181,7 +1184,11 @@ function PickHistory({ picks, selectedUser, currentWeek, games }: PickHistoryPro
                         : 'text-red-500' 
                     : 'text-gray-500'
                 }`}>
-                  {weekPick?.picks[0] ? getPickInfo(weekPick.picks[0]) : '-'}
+                  {weekPick?.picks[0] ? (
+                    (weekPick.picks[0].correct === null || weekPick.picks[0].correct === undefined) && week >= currentWeek 
+                      ? '🤷‍♂️' 
+                      : getPickInfo(weekPick.picks[0])
+                  ) : '-'}
                 </td>
                 <td className={`px-4 py-3 whitespace-nowrap text-sm ${
                   weekPick?.picks[1] 
@@ -1192,7 +1199,11 @@ function PickHistory({ picks, selectedUser, currentWeek, games }: PickHistoryPro
                         : 'text-red-500' 
                     : 'text-gray-500'
                 }`}>
-                  {weekPick?.picks[1] ? getPickInfo(weekPick.picks[1]) : '-'}
+                  {weekPick?.picks[1] ? (
+                    (weekPick.picks[1].correct === null || weekPick.picks[1].correct === undefined) && week >= currentWeek 
+                      ? '🤷‍♂️' 
+                      : getPickInfo(weekPick.picks[1])
+                  ) : '-'}
                 </td>
                 <td className={`px-4 py-3 whitespace-nowrap text-sm ${
                   weekPick?.picks[2] 
@@ -1203,7 +1214,11 @@ function PickHistory({ picks, selectedUser, currentWeek, games }: PickHistoryPro
                         : 'text-red-500' 
                     : 'text-gray-500'
                 }`}>
-                  {weekPick?.picks[2] ? getPickInfo(weekPick.picks[2]) : '-'}
+                  {weekPick?.picks[2] ? (
+                    (weekPick.picks[2].correct === null || weekPick.picks[2].correct === undefined) && week >= currentWeek 
+                      ? '🤷‍♂️' 
+                      : getPickInfo(weekPick.picks[2])
+                  ) : '-'}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                   {weekPick ? `${weekPick.correct}/${weekPick.picks.length}` : '-'}
