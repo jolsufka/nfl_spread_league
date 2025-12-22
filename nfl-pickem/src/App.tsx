@@ -1809,21 +1809,25 @@ function InsightsBeta({ picks, users, games, teamAbbreviations, currentWeek }: I
       if (pick.correct) teamStats[team].correct++;
     });
 
-    return Object.entries(teamStats)
+    const allTeams = Object.entries(teamStats)
       .map(([team, stats]) => ({
         team,
         picked: stats.picked,
         correct: stats.correct,
         percentage: Math.round((stats.correct / stats.picked) * 100)
       }))
-      .sort((a, b) => b.picked - a.picked) // Sort by most picked
-      .slice(0, 10); // Top 10 most popular
+      .sort((a, b) => b.picked - a.picked); // Sort by most picked
+    
+    return {
+      totalTeams: Object.keys(teamStats).length,
+      topTeams: allTeams.slice(0, 10)
+    };
   };
 
   const underdogFavorite = getUnderdogFavoriteAnalytics();
   const homeAway = getHomeAwayAnalytics();
   const spreadAnalytics = getSpreadAnalytics();
-  const mostPopularTeams = getMostPopularTeams();
+  const mostPopularTeamsData = getMostPopularTeams();
 
   // Find the absolute maximum across ALL categories for consistent scaling
   const allData = [
@@ -1832,7 +1836,7 @@ function InsightsBeta({ picks, users, games, teamAbbreviations, currentWeek }: I
     homeAway.home,
     homeAway.away,
     ...spreadAnalytics,
-    ...mostPopularTeams
+    ...mostPopularTeamsData.topTeams
   ];
   const globalMaxVolume = Math.max(...allData.map(d => d.picked));
 
@@ -1916,7 +1920,7 @@ function InsightsBeta({ picks, users, games, teamAbbreviations, currentWeek }: I
           <div className="text-sm text-red-700">Incorrect Picks</div>
         </div>
         <div className="bg-purple-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-purple-600">{mostPopularTeams.length}</div>
+          <div className="text-2xl font-bold text-purple-600">{mostPopularTeamsData.totalTeams}</div>
           <div className="text-sm text-purple-700">Teams Picked</div>
         </div>
       </div>
@@ -2052,7 +2056,7 @@ function InsightsBeta({ picks, users, games, teamAbbreviations, currentWeek }: I
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {mostPopularTeams.map(team => (
+                {mostPopularTeamsData.topTeams.map(team => (
                   <tr key={team.team}>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       <div className="flex items-center">
