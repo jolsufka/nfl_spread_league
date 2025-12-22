@@ -1820,7 +1820,7 @@ function InsightsBeta({ picks, users, games, teamAbbreviations, currentWeek }: I
     
     return {
       totalTeams: Object.keys(teamStats).length,
-      topTeams: allTeams.slice(0, 10)
+      topTeams: allTeams
     };
   };
 
