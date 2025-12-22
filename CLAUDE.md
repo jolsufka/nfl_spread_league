@@ -15,12 +15,14 @@ nfl_spread_league/
 ├── scripts/                   # Python data management scripts
 │   ├── script.py             # Fetches NFL odds data from The Odds API
 │   ├── results_script.py     # Processes game results and updates pick accuracy
-│   └── supabase_integration.py # Handles Supabase database operations
+│   ├── supabase_integration.py # Handles Supabase database operations
+│   └── weather_script.py     # Fetches weather forecasts for outdoor NFL stadiums
 ├── data/                     # Organized data storage
 │   ├── lines/               # NFL odds/lines data (nfl_lines_week*.csv)
 │   ├── results/             # Game results data (nfl_results_week*.csv)
 │   ├── picks/               # User picks data (picks_week*.csv)
-│   └── pick_results/        # Pick accuracy results (pick_results_week*.csv)
+│   ├── pick_results/        # Pick accuracy results (pick_results_week*.csv)
+│   └── weather/             # Weather forecast data for outdoor stadiums
 ├── manual_fixes/            # Manual correction scripts and data
 ├── docs/                    # Documentation files
 ├── workspaces/             # VS Code workspace files
@@ -46,6 +48,9 @@ python3 scripts/script.py --api-key $(cat .api_key) --week1-start-et "2025-09-02
 # Process results and update pick accuracy (ALWAYS use 2025 dates!)
 python3 scripts/results_script.py --api-key $(cat .api_key) --week 8 --week1-start-et "2025-09-02 08:00"
 
+# Fetch weather forecasts for outdoor stadiums
+python3 scripts/weather_script.py --api-key $(cat .weather_api_key) --output data/weather/weather_forecast.csv --games-csv nfl-pickem/public/lines/nfl_lines_week16.csv
+
 # Manual Supabase operations (if needed)
 python3 scripts/supabase_integration.py
 
@@ -58,18 +63,19 @@ python3 scripts/supabase_integration.py
 
 ### React App Architecture
 - **Components**: Comprehensive single-file architecture in `App.tsx` with:
-  - `PickInterface`: Game selection interface with team logos, spread visualization, and user validation
-  - `Leaderboard`: Real-time standings with percentage calculations and group performance metrics
+  - `PickInterface`: Game selection interface with team logos, spread visualization, weather integration, and user validation
+  - `Leaderboard`: Real-time standings with percentage calculations, group performance metrics, weekly heatmap, and cumulative trend charts
   - `PickChart`: Matrix view of all users' picks across weeks with totals and percentages
   - `PickHistory`: Individual user pick history with result tracking
-  - `InsightsBeta`: Advanced analytics (favorites vs underdogs, home/away, spread ranges, popular teams)
+  - `InsightsBeta`: Advanced analytics (favorites vs underdogs, home/away, spread ranges, all popular teams)
 - **State Management**: React hooks (useState, useEffect) with Supabase integration and localStorage persistence
 - **User Persistence**: Selected user saved to localStorage (`nfl-pickem-user` key) and restored on app load
 - **Styling**: Tailwind CSS with responsive design, hover states, and conditional styling for game states
 - **Data Sources**: 
   - Supabase database for picks storage and retrieval
   - CSV files in `public/` directory for games data (nfl_lines_week*.csv)
-  - YAML file for team abbreviations (teamAbbreviations.yaml)
+  - YAML files for team data (teamAbbreviations.yaml, nflStadiums.yaml)
+  - Weather forecast CSV for outdoor stadium conditions
   - ESPN team logos via CDN links
 
 ### Database Architecture (Supabase)
@@ -93,6 +99,11 @@ python3 scripts/supabase_integration.py
   - Centralized database operations module
   - Functions for extracting picks, updating results, generating leaderboards
   - Exports picks to `data/picks/` directory
+- **scripts/weather_script.py**:
+  - Fetches weather forecasts from OpenWeatherMap API for outdoor NFL stadiums
+  - Uses game kickoff times for accurate game-time weather predictions
+  - Generates concise weather summaries with temperature, precipitation, wind conditions
+  - Supports extreme weather icons and filtering for notable conditions only
 
 ### Data Flow
 1. **Weekly Setup**: Use `scripts/script.py` to fetch odds → CSV in `data/lines/` → copy to `nfl-pickem/public/`
@@ -116,6 +127,7 @@ python3 scripts/supabase_integration.py
 - **`data/results/`**: Game results with ATS outcomes (nfl_results_week*.csv)
 - **`data/picks/`**: User selections exported from Supabase (picks_week*.csv)
 - **`data/pick_results/`**: Pick accuracy results (pick_results_week*.csv)
+- **`data/weather/`**: Weather forecast data for outdoor stadiums (weather_forecast.csv)
 
 ### Script Files
 - **`scripts/`**: All Python data management scripts
@@ -131,8 +143,9 @@ python3 scripts/supabase_integration.py
 - GitHub Pages deployment via gh-pages package
 
 ### Python Requirements
-- Python with pandas, requests, pytz, supabase-py
+- Python with pandas, requests, pytz, supabase-py, yaml, dateutil
 - The Odds API key (set as ODDS_API_KEY environment variable or .api_key file)
+- OpenWeatherMap API key (stored in .weather_api_key file)
 - Supabase project with `picks` table configured
 
 ### Deployment
@@ -141,6 +154,7 @@ python3 scripts/supabase_integration.py
 - **Static Assets**: CSV files in organized folders and team data in `nfl-pickem/public/`
   - `nfl-pickem/public/lines/`: NFL odds/lines CSV files
   - `nfl-pickem/public/results/`: NFL game results CSV files
+  - `nfl-pickem/public/weather_forecast.csv`: Weather forecasts for outdoor stadiums
 - **User State**: Persisted locally via browser localStorage for seamless user experience
 
 ## Weekly Workflow
@@ -156,7 +170,9 @@ python3 scripts/supabase_integration.py
 - **Local User Persistence**: Selected user automatically saved and restored across sessions
 - **Real-time Pick Validation**: Prevents submissions without user selection or incomplete picks
 - **Game State Management**: Games lock automatically at kickoff time to prevent late picks
-- **Comprehensive Analytics**: Advanced insights including favorites vs underdogs, home/away performance, and spread analysis
+- **Weather Integration**: Game-time weather forecasts for outdoor stadiums with condition icons
+- **Interactive Analytics**: Cumulative trend charts with tooltips, weekly performance heatmaps
+- **Comprehensive Insights**: All team statistics, favorites vs underdogs, home/away performance, spread analysis
 - **Responsive Design**: Mobile-friendly interface with touch-optimized interactions
 - **Live Updates**: Real-time leaderboard and pick tracking with Supabase integration
 - **Organized Data Structure**: Clean separation of data types in organized folders
