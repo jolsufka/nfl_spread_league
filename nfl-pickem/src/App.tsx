@@ -14,6 +14,15 @@ interface Game {
   spreads_book: string;
 }
 
+interface WeatherData {
+  team: string;
+  stadium: string;
+  city: string;
+  state: string;
+  weather_summary: string;
+  forecast_time: string;
+}
+
 interface TeamPick {
   gameId: string;
   team: string; // team name selected
@@ -55,12 +64,14 @@ function App() {
   });
   const [activeTab, setActiveTab] = useState<'picks' | 'leaderboard' | 'chart' | 'history' | 'insights' | 'nfl-trends'>('picks');
   const [teamAbbreviations, setTeamAbbreviations] = useState<{[key: string]: string}>({});
+  const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
 
   useEffect(() => {
     // Load games from CSV (we'll create this from your odds script)
     loadGames();
     loadPicks();
     loadTeamAbbreviations();
+    loadWeatherData();
   }, []);
 
   const loadGames = async () => {
@@ -116,6 +127,40 @@ function App() {
       setTeamAbbreviations(data.teams);
     } catch (error) {
       console.error('Error loading team abbreviations:', error);
+    }
+  };
+
+  const loadWeatherData = async () => {
+    try {
+      const response = await fetch(`${process.env.PUBLIC_URL}/weather_forecast.csv`);
+      if (!response.ok) {
+        console.error('Failed to load weather data');
+        return;
+      }
+      const csvText = await response.text();
+      
+      Papa.parse(csvText, {
+        header: true,
+        complete: (results) => {
+          const weatherRecords: WeatherData[] = results.data
+            .filter((row: any) => row.team && row.weather_summary) // Filter out empty rows
+            .map((row: any) => ({
+              team: row.team,
+              stadium: row.stadium,
+              city: row.city,
+              state: row.state,
+              weather_summary: row.weather_summary,
+              forecast_time: row.forecast_time
+            }));
+          
+          setWeatherData(weatherRecords);
+        },
+        error: (error: any) => {
+          console.error('Error parsing weather CSV:', error);
+        }
+      });
+    } catch (error) {
+      console.error('Error loading weather data:', error);
     }
   };
 
@@ -287,6 +332,7 @@ function App() {
               onSavePicks={(picks) => savePicks(selectedUser, currentWeek, picks)}
               selectedUser={selectedUser}
               users={users}
+              weatherData={weatherData}
             />
           </div>
         )}
@@ -340,9 +386,10 @@ interface PickInterfaceProps {
   onSavePicks: (picks: TeamPick[]) => void;
   selectedUser: string;
   users: User[];
+  weatherData: WeatherData[];
 }
 
-function PickInterface({ games, currentPicks, onSavePicks, selectedUser, users }: PickInterfaceProps) {
+function PickInterface({ games, currentPicks, onSavePicks, selectedUser, users, weatherData }: PickInterfaceProps) {
   const [selectedPicks, setSelectedPicks] = useState<TeamPick[]>(currentPicks);
   const [hasExistingPicks, setHasExistingPicks] = useState<boolean>(currentPicks.length > 0);
   
@@ -386,6 +433,57 @@ function PickInterface({ games, currentPicks, onSavePicks, selectedUser, users }
       // Can't add more than 3 picks
       return prev;
     });
+  };
+
+  // Get weather data for a specific team (home team)
+  const getWeatherForTeam = (teamName: string): WeatherData | null => {
+    return weatherData.find(w => w.team === teamName) || null;
+  };
+
+  // Format weather for display
+  const formatWeatherDisplay = (weather: WeatherData | null): string => {
+    if (!weather || !weather.weather_summary) return '';
+    
+    const summary = weather.weather_summary;
+    let formatted = '';
+    
+    // Temperature with icon (only for extreme conditions)
+    // Match temperature patterns like "37°F" or "37°F (feels 30°F)"
+    const tempMatch = summary.match(/(\d+)°F(?:\s*\(feels\s+\d+°F\))?/);
+    if (tempMatch) {
+      const tempNumMatch = tempMatch[0].match(/(\d+)°F/);
+      if (tempNumMatch) {
+        const temp = parseInt(tempNumMatch[1]);
+        if (temp < 32) {
+          formatted += `🥶 ${tempMatch[0]}`;
+        } else if (temp > 80) {
+          formatted += `☀️ ${tempMatch[0]}`;
+        } else {
+          formatted += tempMatch[0]; // No icon for normal temps
+        }
+      }
+    }
+    
+    // Rain
+    if (summary.includes('rain')) {
+      const rainMatch = summary.match(/(\d+)% chance rain/);
+      if (rainMatch) {
+        formatted += ` | 🌧️ ${rainMatch[1]}% rain`;
+      }
+    }
+    
+    // Snow (only if actually snowing)
+    if (summary.includes('Snow') || summary.includes('snow')) {
+      formatted += ' | ❄️ Snow';
+    }
+    
+    // Wind
+    const windMatch = summary.match(/Windy \((\d+)mph/);
+    if (windMatch) {
+      formatted += ` | 💨 ${windMatch[1]}mph winds`;
+    }
+    
+    return formatted;
   };
 
   const handleSave = () => {
@@ -544,6 +642,17 @@ function PickInterface({ games, currentPicks, onSavePicks, selectedUser, users }
                     </div>
                   )}
                 </div>
+                
+                {/* Weather Display */}
+                {(() => {
+                  const weather = getWeatherForTeam(game.home);
+                  const weatherDisplay = formatWeatherDisplay(weather);
+                  return weatherDisplay ? (
+                    <div className={`text-xs mt-1 ${gameLocked ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {weatherDisplay}
+                    </div>
+                  ) : null;
+                })()}
               </div>
               
               <div className="space-y-3">
@@ -935,6 +1044,287 @@ function Leaderboard({ users, picks, currentWeek }: LeaderboardProps) {
           </div>
         </div>
       </div>
+
+      {/* Cumulative Success Percentage Trend Chart */}
+      <div className="mt-8 bg-white rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">📈 Cumulative Success Percentage Trends</h3>
+        <CumulativeTrendChart 
+          picks={picks} 
+          users={leaderboardData} 
+          currentWeek={currentWeek} 
+        />
+      </div>
+    </div>
+  );
+}
+
+interface LeaderboardUser {
+  id: string;
+  name: string;
+  totalCorrect: number;
+  totalPicks: number;
+  percentage: number;
+  last5WeeksPercentage: number;
+  rank: number;
+}
+
+interface CumulativeTrendChartProps {
+  picks: Pick[];
+  users: LeaderboardUser[];
+  currentWeek: number;
+}
+
+function CumulativeTrendChart({ picks, users, currentWeek }: CumulativeTrendChartProps) {
+  const [highlightedUser, setHighlightedUser] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
+
+  // User colors for the lines
+  const userColors = {
+    'Jacob': '#3B82F6', // Blue
+    'Cam': '#EF4444',   // Red
+    'Connor': '#10B981', // Green
+    'Nathan': '#F59E0B', // Amber
+    'Shane': '#8B5CF6',  // Purple
+    'Max': '#06B6D4',    // Cyan
+    'John': '#EC4899'    // Pink
+  };
+
+  // Calculate cumulative percentages for each user week by week
+  const getTrendData = () => {
+    const trendData: { [userId: string]: { week: number; percentage: number }[] } = {};
+    
+    users.forEach(user => {
+      trendData[user.id] = [];
+      let cumulativeCorrect = 0;
+      let cumulativePicks = 0;
+
+      for (let week = 1; week < currentWeek; week++) {
+        const weekPick = picks.find(p => p.userId === user.id && p.week === week);
+        if (weekPick && weekPick.picks.length > 0) {
+          cumulativeCorrect += weekPick.correct;
+          cumulativePicks += weekPick.picks.length;
+        }
+        
+        const percentage = cumulativePicks > 0 ? (cumulativeCorrect / cumulativePicks) * 100 : 0;
+        trendData[user.id].push({ week, percentage });
+      }
+    });
+
+    return trendData;
+  };
+
+  const trendData = getTrendData();
+
+  // SVG dimensions
+  const width = 800;
+  const height = 400;
+  const margin = { top: 20, right: 20, bottom: 40, left: 60 };
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+
+  // Scale functions
+  const xScale = (week: number) => (week - 1) * (chartWidth / Math.max(currentWeek - 2, 1));
+  const yScale = (percentage: number) => chartHeight - (percentage / 100) * chartHeight;
+
+  const createPath = (data: { week: number; percentage: number }[]) => {
+    if (data.length === 0) return '';
+    
+    let path = `M ${xScale(data[0].week)} ${yScale(data[0].percentage)}`;
+    for (let i = 1; i < data.length; i++) {
+      path += ` L ${xScale(data[i].week)} ${yScale(data[i].percentage)}`;
+    }
+    return path;
+  };
+
+  return (
+    <div className="flex gap-6">
+      {/* Chart */}
+      <div className="flex-1">
+        <svg width={width} height={height} className="rounded">
+          {/* Grid lines */}
+          <g className="opacity-20">
+            {/* Horizontal grid lines */}
+            {[0, 25, 50, 75, 100].map(percentage => (
+              <line
+                key={`h-grid-${percentage}`}
+                x1={margin.left}
+                y1={margin.top + yScale(percentage)}
+                x2={margin.left + chartWidth}
+                y2={margin.top + yScale(percentage)}
+                stroke="#666"
+                strokeWidth="1"
+              />
+            ))}
+            {/* Vertical grid lines */}
+            {Array.from({ length: currentWeek - 1 }, (_, i) => i + 1).map(week => (
+              <line
+                key={`v-grid-${week}`}
+                x1={margin.left + xScale(week)}
+                y1={margin.top}
+                x2={margin.left + xScale(week)}
+                y2={margin.top + chartHeight}
+                stroke="#666"
+                strokeWidth="1"
+              />
+            ))}
+          </g>
+
+          {/* Axes */}
+          <g>
+            {/* Y-axis */}
+            <line
+              x1={margin.left}
+              y1={margin.top}
+              x2={margin.left}
+              y2={margin.top + chartHeight}
+              stroke="#333"
+              strokeWidth="2"
+            />
+            {/* X-axis */}
+            <line
+              x1={margin.left}
+              y1={margin.top + chartHeight}
+              x2={margin.left + chartWidth}
+              y2={margin.top + chartHeight}
+              stroke="#333"
+              strokeWidth="2"
+            />
+          </g>
+
+          {/* Y-axis labels */}
+          <g>
+            {[0, 25, 50, 75, 100].map(percentage => (
+              <text
+                key={`y-label-${percentage}`}
+                x={margin.left - 10}
+                y={margin.top + yScale(percentage)}
+                textAnchor="end"
+                dominantBaseline="middle"
+                className="text-xs fill-gray-600"
+              >
+                {percentage}%
+              </text>
+            ))}
+          </g>
+
+          {/* X-axis labels */}
+          <g>
+            {Array.from({ length: Math.min(currentWeek - 1, 15) }, (_, i) => i + 1).map(week => (
+              <text
+                key={`x-label-${week}`}
+                x={margin.left + xScale(week)}
+                y={margin.top + chartHeight + 20}
+                textAnchor="middle"
+                className="text-xs fill-gray-600"
+              >
+                W{week}
+              </text>
+            ))}
+          </g>
+
+          {/* Trend lines */}
+          <g>
+            {users.map(user => {
+              const data = trendData[user.id];
+              const color = userColors[user.name as keyof typeof userColors] || '#666';
+              const isHighlighted = highlightedUser === user.id;
+              const isOtherHighlighted = highlightedUser !== null && highlightedUser !== user.id;
+              
+              return (
+                <g key={user.id}>
+                  <path
+                    d={createPath(data)}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={isHighlighted ? 4 : isOtherHighlighted ? 1 : 2}
+                    opacity={isOtherHighlighted ? 0.3 : 1}
+                    className="transition-all duration-200"
+                    transform={`translate(${margin.left}, ${margin.top})`}
+                  />
+                  {/* Data points */}
+                  {data.map((point, index) => (
+                    <circle
+                      key={`${user.id}-point-${index}`}
+                      cx={margin.left + xScale(point.week)}
+                      cy={margin.top + yScale(point.percentage)}
+                      r={isHighlighted ? 5 : isOtherHighlighted ? 2 : 3}
+                      fill={color}
+                      opacity={isOtherHighlighted ? 0.3 : 1}
+                      className="transition-all duration-200 cursor-pointer hover:r-4"
+                      onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setTooltip({
+                          x: rect.left + rect.width / 2,
+                          y: rect.top - 10,
+                          content: `${user.name} - Week ${point.week}: ${point.percentage.toFixed(1)}%`
+                        });
+                      }}
+                      onMouseLeave={() => setTooltip(null)}
+                    />
+                  ))}
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      </div>
+
+      {/* Legend */}
+      <div className="w-48">
+        <h4 className="text-sm font-semibold text-gray-700 mb-3">Click to highlight:</h4>
+        <div className="space-y-2">
+          {users.map(user => {
+            const color = userColors[user.name as keyof typeof userColors] || '#666';
+            const currentPercentage = trendData[user.id].length > 0 
+              ? trendData[user.id][trendData[user.id].length - 1].percentage 
+              : 0;
+            
+            return (
+              <div
+                key={user.id}
+                className={`flex items-center justify-between p-2 rounded cursor-pointer transition-all ${
+                  highlightedUser === user.id ? 'bg-gray-100 ring-2 ring-blue-300' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => setHighlightedUser(highlightedUser === user.id ? null : user.id)}
+              >
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-4 h-1 rounded"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-sm font-medium">{user.name}</span>
+                </div>
+                <span className="text-xs text-gray-600">
+                  {currentPercentage.toFixed(1)}%
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        
+        {highlightedUser && (
+          <button
+            onClick={() => setHighlightedUser(null)}
+            className="mt-3 w-full text-xs px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded transition-colors"
+          >
+            Clear highlight
+          </button>
+        )}
+      </div>
+
+      {/* Tooltip */}
+      {tooltip && (
+        <div
+          className="fixed bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none z-50"
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+            transform: 'translateX(-50%)'
+          }}
+        >
+          {tooltip.content}
+        </div>
+      )}
     </div>
   );
 }

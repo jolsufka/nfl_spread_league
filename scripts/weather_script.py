@@ -12,6 +12,8 @@ from datetime import datetime
 import argparse
 import sys
 import os
+from dateutil import parser as date_parser
+import pytz
 
 class WeatherAPI:
     def __init__(self, api_key):
@@ -58,6 +60,39 @@ def get_outdoor_stadiums():
             outdoor_teams[team] = info
     
     return outdoor_teams
+
+def load_games_data(games_csv_path):
+    """Load game data with kickoff times"""
+    if not games_csv_path or not os.path.exists(games_csv_path):
+        return {}
+    
+    try:
+        games_df = pd.read_csv(games_csv_path)
+        games_dict = {}
+        
+        for _, row in games_df.iterrows():
+            # Parse kickoff time (assuming ET timezone)
+            kickoff_str = row['kickoff_et']
+            # Remove timezone suffix if present and parse
+            if kickoff_str.endswith('-05:00'):
+                kickoff_str = kickoff_str[:-6]
+            
+            kickoff_dt = date_parser.parse(kickoff_str)
+            # Assume ET timezone if not specified
+            et_tz = pytz.timezone('America/New_York')
+            if kickoff_dt.tzinfo is None:
+                kickoff_dt = et_tz.localize(kickoff_dt)
+            
+            # Store game time for both teams (since weather matters for the stadium location)
+            home_team = row['home']
+            away_team = row['away']
+            games_dict[home_team] = kickoff_dt
+            games_dict[away_team] = kickoff_dt
+            
+        return games_dict
+    except Exception as e:
+        print(f"Error loading games data: {e}")
+        return {}
 
 def generate_weather_summary(forecast_data, target_date=None):
     """Generate a concise weather summary for game conditions"""
@@ -132,6 +167,8 @@ def main():
     parser.add_argument('--api-key', required=True, help='OpenWeatherMap API key')
     parser.add_argument('--output', default='data/weather/weather_forecast.csv', 
                        help='Output CSV file path')
+    parser.add_argument('--games-csv', 
+                       help='Path to games CSV file with kickoff times')
     parser.add_argument('--test', action='store_true', 
                        help='Test with a few stadiums only')
     
@@ -139,6 +176,12 @@ def main():
     
     # Initialize weather API
     weather_api = WeatherAPI(args.api_key)
+    
+    # Load game data with kickoff times
+    games_data = {}
+    if args.games_csv:
+        games_data = load_games_data(args.games_csv)
+        print(f"Loaded kickoff times for {len(games_data)} games")
     
     # Get outdoor stadiums
     outdoor_stadiums = get_outdoor_stadiums()
@@ -158,8 +201,13 @@ def main():
         forecast_data = weather_api.get_forecast(stadium_info['city'], stadium_info['state'])
         
         if forecast_data:
-            # Generate summary for current conditions
-            summary = generate_weather_summary(forecast_data)
+            # Get game time if available
+            game_time = games_data.get(team)
+            
+            # Generate summary for game time or current conditions
+            summary = generate_weather_summary(forecast_data, game_time)
+            
+            time_info = f" at game time ({game_time.strftime('%m/%d %I:%M%p')})" if game_time else ""
             
             weather_data.append({
                 'team': team,
@@ -168,10 +216,11 @@ def main():
                 'state': stadium_info['state'],
                 'weather_summary': summary,
                 'forecast_time': datetime.now().isoformat(),
+                'game_time': game_time.isoformat() if game_time else '',
                 'raw_data': json.dumps(forecast_data)  # Store raw data for detailed analysis
             })
             
-            print(f"  {summary}")
+            print(f"  {summary}{time_info}")
         else:
             print(f"  Failed to get weather data")
     
