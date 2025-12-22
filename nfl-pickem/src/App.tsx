@@ -940,7 +940,7 @@ function Leaderboard({ users, picks, currentWeek }: LeaderboardProps) {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     <span className={`font-semibold px-2 py-1 rounded ${
                       user.last5WeeksPercentage >= 60 ? 'bg-green-100 text-green-800' :
-                      user.last5WeeksPercentage >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                      user.last5WeeksPercentage >= 40 ? 'bg-gray-100 text-gray-600' :
                       user.last5WeeksPercentage > 0 ? 'bg-red-100 text-red-800' :
                       'bg-gray-100 text-gray-500'
                     }`}>
