@@ -23,6 +23,9 @@ nfl_spread_league/
 │   ├── picks/               # User picks data (picks_week*.csv)
 │   ├── pick_results/        # Pick accuracy results (pick_results_week*.csv)
 │   └── weather/             # Weather forecast data for outdoor stadiums
+├── .keys/                   # API keys storage (secure folder)
+│   ├── odds_api_key        # The Odds API key
+│   └── weather_api_key     # OpenWeatherMap API key
 ├── manual_fixes/            # Manual correction scripts and data
 ├── docs/                    # Documentation files
 ├── workspaces/             # VS Code workspace files
@@ -43,13 +46,13 @@ npm run deploy # Deploy to GitHub Pages
 ### Python Scripts (scripts/)
 ```bash
 # Fetch odds for a specific week (ALWAYS use 2025 dates!)
-python3 scripts/script.py --api-key $(cat .api_key) --week1-start-et "2025-09-02 08:00" --week 9 --csv data/lines/nfl_lines_week9.csv
+python3 scripts/script.py --api-key $(cat .keys/odds_api_key) --week1-start-et "2025-09-02 08:00" --week 9 --csv data/lines/nfl_lines_week9.csv
 
 # Process results and update pick accuracy (ALWAYS use 2025 dates!)
-python3 scripts/results_script.py --api-key $(cat .api_key) --week 8 --week1-start-et "2025-09-02 08:00"
+python3 scripts/results_script.py --api-key $(cat .keys/odds_api_key) --week 8 --week1-start-et "2025-09-02 08:00"
 
 # Fetch weather forecasts for outdoor stadiums
-python3 scripts/weather_script.py --api-key $(cat .weather_api_key) --output data/weather/weather_forecast.csv --games-csv nfl-pickem/public/lines/nfl_lines_week16.csv
+python3 scripts/weather_script.py --api-key $(cat .keys/weather_api_key) --output data/weather/weather_forecast.csv --games-csv nfl-pickem/public/lines/nfl_lines_week16.csv
 
 # Manual Supabase operations (if needed)
 python3 scripts/supabase_integration.py
@@ -111,7 +114,11 @@ python3 scripts/supabase_integration.py
 3. **Pick Submission**: React app loads games from CSV, validates user selection, saves picks to Supabase
 4. **Results Processing**: Use `scripts/results_script.py` to grade picks after games complete
    - **IMPORTANT**: Use the `spread-analysis` skill in `.claude/skills/spread-analysis.md` for accurate spread calculations
-   - **Push Handling**: Pushes count as picks made and are included in total for win percentage calculation (stored as NULL in database)
+   - **CRITICAL PUSH HANDLING RULE**: 
+  - **Pushes (`correct === null`) count as picks made (denominator) but NOT as correct picks (numerator)**
+  - **This means they DECREASE win percentage: if you go 2-0 with 1 push, you're 2/3 = 66.7%, not 2/2 = 100%**
+  - **Pushes are stored as `NULL` in database and must be counted in totals for percentage calculations**
+  - **This rule applies to ALL percentage calculations: Leaderboard, PickChart totals, analytics, etc.**
 5. **Analytics**: React app displays real-time analytics from graded picks with advanced insights
 
 ### Key Data Types
@@ -144,8 +151,8 @@ python3 scripts/supabase_integration.py
 
 ### Python Requirements
 - Python with pandas, requests, pytz, supabase-py, yaml, dateutil
-- The Odds API key (set as ODDS_API_KEY environment variable or .api_key file)
-- OpenWeatherMap API key (stored in .weather_api_key file)
+- The Odds API key (stored in .keys/odds_api_key file)
+- OpenWeatherMap API key (stored in .keys/weather_api_key file)
 - Supabase project with `picks` table configured
 
 ### Deployment
@@ -159,11 +166,11 @@ python3 scripts/supabase_integration.py
 
 ## Weekly Workflow
 
-1. **Fetch Odds**: `python3 scripts/script.py --api-key $(cat .api_key) --week1-start-et "2025-09-02 08:00" --week N`
+1. **Fetch Odds**: `python3 scripts/script.py --api-key $(cat .keys/odds_api_key) --week1-start-et "2025-09-02 08:00" --week N`
 2. **Copy to App**: `cp data/lines/nfl_lines_weekN.csv nfl-pickem/public/lines/`
 3. **Update App**: Change `currentWeek` and CSV filename in `App.tsx`
 4. **Deploy**: `cd nfl-pickem && npm run deploy`
-5. **Process Results**: `python3 scripts/results_script.py --api-key $(cat .api_key) --week N --week1-start-et "2025-09-02 08:00"`
+5. **Process Results**: `python3 scripts/results_script.py --api-key $(cat .keys/odds_api_key) --week N --week1-start-et "2025-09-02 08:00"`
 6. **Copy Results**: `cp data/results/nfl_results_weekN.csv nfl-pickem/public/results/`
 
 ## Key Features
