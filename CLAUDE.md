@@ -173,6 +173,11 @@ python3 scripts/supabase_integration.py
 5. **Process Results**: `python3 scripts/results_script.py --api-key $(cat .keys/odds_api_key) --week N --week1-start-et "2025-09-02 08:00"`
 6. **Copy Results**: `cp data/results/nfl_results_weekN.csv nfl-pickem/public/results/`
 
+**IMPORTANT**: When processing results for week N, you must also advance the app to week N+1:
+- The Weekly Performance Heatmap shows weeks 1 through `currentWeek - 1`
+- The Cumulative Success Percentage Trends chart also uses `currentWeek - 1`
+- So after grading week N results, update `currentWeek` to N+1 and deploy to show week N in charts
+
 ## Key Features
 - **Local User Persistence**: Selected user automatically saved and restored across sessions
 - **Real-time Pick Validation**: Prevents submissions without user selection or incomplete picks

@@ -16,7 +16,9 @@
       "Bash(npm run build:*)",
       "Bash(git commit:*)",
       "Bash(python:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(curl:*)",
+      "Bash(ping:*)"
     ],
     "deny": [],
     "ask": []
