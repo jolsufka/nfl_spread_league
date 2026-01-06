@@ -56,13 +56,13 @@ function App() {
     { id: 'john', name: 'John', total: 0, percentage: 0 },
   ]);
   const [picks, setPicks] = useState<Pick[]>([]);
-  const [currentWeek, setCurrentWeek] = useState(18);
+  const [currentWeek, setCurrentWeek] = useState(19);
   const [selectedUser, setSelectedUser] = useState<string>(() => {
     // Check localStorage for previously selected user
     const savedUser = localStorage.getItem('nfl-pickem-user');
     return savedUser || ''; // Empty string forces user selection
   });
-  const [activeTab, setActiveTab] = useState<'picks' | 'leaderboard' | 'chart' | 'history' | 'insights' | 'nfl-trends'>('picks');
+  const [activeTab, setActiveTab] = useState<'picks' | 'leaderboard' | 'chart' | 'history' | 'insights' | 'nfl-trends'>('leaderboard');
   const [teamAbbreviations, setTeamAbbreviations] = useState<{[key: string]: string}>({});
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
 
@@ -262,7 +262,6 @@ function App() {
         <div className="mb-8">
           <nav className="flex space-x-4 md:space-x-8 overflow-x-auto pb-2">
             {[
-              { key: 'picks', label: 'Make Picks' },
               { key: 'leaderboard', label: 'Leaderboard' },
               { key: 'chart', label: 'Pick Chart' },
               { key: 'history', label: 'Pick History' },
