@@ -63,12 +63,17 @@ function App() {
     return savedUser || ''; // Empty string forces user selection
   });
   const [activeTab, setActiveTab] = useState<'picks' | 'leaderboard' | 'chart' | 'history' | 'insights' | 'nfl-trends'>('leaderboard');
+  const [playoffTab, setPlayoffTab] = useState<'picks' | 'chart'>('picks');
+  const [mode, setMode] = useState<'regular' | 'playoffs'>('playoffs'); // Default to playoffs since we're in playoff season
+  const [playoffGames, setPlayoffGames] = useState<Game[]>([]);
+  const [playoffWeek, setPlayoffWeek] = useState(100); // 100 = Wild Card, 101 = Divisional, 102 = Conference, 103 = Super Bowl
   const [teamAbbreviations, setTeamAbbreviations] = useState<{[key: string]: string}>({});
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
 
   useEffect(() => {
     // Load games from CSV (we'll create this from your odds script)
     loadGames();
+    loadPlayoffGames();
     loadPicks();
     loadTeamAbbreviations();
     loadWeatherData();
@@ -113,6 +118,39 @@ function App() {
     // Fallback if CSV fails to load - should not happen in production
     console.error('Failed to load games from CSV');
     setGames([]);
+  };
+
+  const loadPlayoffGames = async () => {
+    try {
+      // Load playoff games from CSV file
+      const response = await fetch(`${process.env.PUBLIC_URL}/lines/nfl_playoff_wildcard.csv`);
+      const csvText = await response.text();
+
+      Papa.parse(csvText, {
+        header: true,
+        complete: (results) => {
+          const csvGames: Game[] = results.data.map((row: any, index: number) => ({
+            id: `playoff-${index + 1}`,
+            kickoff_et: row.kickoff_et,
+            away: row.away,
+            home: row.home,
+            spread_away: parseFloat(row.spread_away),
+            spread_home: parseFloat(row.spread_home),
+            total: parseFloat(row.total),
+            spreads_book: row.spreads_book
+          })).filter(game => game.away && game.home);
+
+          setPlayoffGames(csvGames);
+        },
+        error: (error: any) => {
+          console.error('Error parsing playoff CSV:', error);
+          setPlayoffGames([]);
+        }
+      });
+    } catch (error) {
+      console.error('Error loading playoff CSV file:', error);
+      setPlayoffGames([]);
+    }
   };
 
   const loadTeamAbbreviations = async () => {
@@ -248,16 +286,58 @@ function App() {
     return picks.find(p => p.userId === selectedUser && p.week === currentWeek);
   };
 
+  const getCurrentUserPlayoffPicks = () => {
+    return picks.find(p => p.userId === selectedUser && p.week === playoffWeek);
+  };
+
+  const getPlayoffWeekName = (week: number) => {
+    switch (week) {
+      case 100: return 'Wild Card';
+      case 101: return 'Divisional';
+      case 102: return 'Conference';
+      case 103: return 'Super Bowl';
+      default: return 'Playoffs';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
+        <div className="text-center mb-4">
           <h1 className="text-4xl font-bold text-gray-900">
             2025-26 NFL Spread Pick-Em
           </h1>
         </div>
 
+        {/* Mode Toggle */}
+        <div className="flex justify-center mb-6">
+          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+            <button
+              onClick={() => setMode('regular')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                mode === 'regular'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Regular Season
+            </button>
+            <button
+              onClick={() => setMode('playoffs')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                mode === 'playoffs'
+                  ? 'bg-green-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Playoffs
+            </button>
+          </div>
+        </div>
+
+        {/* Regular Season Content */}
+        {mode === 'regular' && (
+          <>
         {/* Tab Navigation */}
         <div className="mb-8">
           <nav className="flex space-x-4 md:space-x-8 overflow-x-auto pb-2">
@@ -373,6 +453,97 @@ function App() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">🏈 NFL Trends</h2>
             <NFLTrends games={games} teamAbbreviations={teamAbbreviations} currentWeek={currentWeek} />
           </div>
+        )}
+          </>
+        )}
+
+        {/* Playoffs Content */}
+        {mode === 'playoffs' && (
+          <>
+            {/* Playoff Tab Navigation */}
+            <div className="mb-8">
+              <nav className="flex space-x-4 md:space-x-8 overflow-x-auto pb-2">
+                {[
+                  { key: 'picks', label: 'Make Picks' },
+                  { key: 'chart', label: 'Pick Chart' }
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setPlayoffTab(tab.key as 'picks' | 'chart')}
+                    className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
+                      playoffTab === tab.key
+                        ? 'border-green-500 text-green-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            {/* User Selection for Playoffs */}
+            {playoffTab === 'picks' && (
+              <div className="mb-8">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select User
+                </label>
+                <select
+                  value={selectedUser}
+                  onChange={(e) => {
+                    const newUser = e.target.value;
+                    setSelectedUser(newUser);
+                    if (newUser) {
+                      localStorage.setItem('nfl-pickem-user', newUser);
+                    }
+                  }}
+                  className="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
+                >
+                  {!selectedUser && (
+                    <option value="" disabled>
+                      Select your name...
+                    </option>
+                  )}
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Playoff Picks Tab */}
+            {playoffTab === 'picks' && (
+              <div className="mb-8">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+                  {selectedUser ? `${users.find(u => u.id === selectedUser)?.name}'s Playoff Picks - Wild Card` : 'Wild Card Picks'}
+                </h2>
+
+                <PlayoffPickInterface
+                  games={playoffGames}
+                  currentPicks={getCurrentUserPlayoffPicks()?.picks || []}
+                  onSavePicks={(newPicks) => savePicks(selectedUser, playoffWeek, newPicks)}
+                  selectedUser={selectedUser}
+                  users={users}
+                />
+              </div>
+            )}
+
+            {/* Playoff Pick Chart Tab */}
+            {playoffTab === 'chart' && (
+              <div className="bg-white rounded-lg shadow p-6 mb-8">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">Playoff Pick Chart - Wild Card</h2>
+                <PlayoffPickChart
+                  picks={picks}
+                  users={users}
+                  playoffWeek={playoffWeek}
+                  games={playoffGames}
+                  teamAbbreviations={teamAbbreviations}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -785,6 +956,425 @@ interface PickHistoryProps {
   selectedUser: string;
   currentWeek: number;
   games: Game[];
+}
+
+interface PlayoffPickInterfaceProps {
+  games: Game[];
+  currentPicks: TeamPick[];
+  onSavePicks: (picks: TeamPick[]) => void;
+  selectedUser: string;
+  users: User[];
+}
+
+interface PlayoffPickChartProps {
+  picks: Pick[];
+  users: User[];
+  playoffWeek: number;
+  games: Game[];
+  teamAbbreviations: {[key: string]: string};
+}
+
+function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, users }: PlayoffPickInterfaceProps) {
+  const [selectedPicks, setSelectedPicks] = useState<TeamPick[]>(currentPicks);
+  const [hasExistingPicks, setHasExistingPicks] = useState<boolean>(currentPicks.length > 0);
+
+  React.useEffect(() => {
+    setSelectedPicks(currentPicks);
+    setHasExistingPicks(currentPicks.length > 0);
+  }, [currentPicks]);
+
+  const handleTeamToggle = (gameId: string, team: string, spread: number) => {
+    const game = games.find(g => g.id === gameId);
+    if (game && isGameLocked(game)) {
+      return;
+    }
+
+    setSelectedPicks(prev => {
+      const existingPickIndex = prev.findIndex(p => p.gameId === gameId && p.team === team);
+
+      if (existingPickIndex >= 0) {
+        return prev.filter((_, index) => index !== existingPickIndex);
+      }
+
+      const otherTeamIndex = prev.findIndex(p => p.gameId === gameId && p.team !== team);
+
+      if (otherTeamIndex >= 0) {
+        const newPicks = [...prev];
+        newPicks[otherTeamIndex] = { gameId, team, spread };
+        return newPicks;
+      }
+
+      // No limit on picks for playoffs - can pick all games
+      return [...prev, { gameId, team, spread }];
+    });
+  };
+
+  const handleSave = () => {
+    // Allow saving with at least 1 pick (partial submission allowed)
+    if (selectedPicks.length >= 1) {
+      onSavePicks(selectedPicks);
+    }
+  };
+
+  const arePicksModified = () => {
+    if (!hasExistingPicks && selectedPicks.length > 0) return true;
+    if (hasExistingPicks && selectedPicks.length !== currentPicks.length) return true;
+
+    return selectedPicks.some(pick => {
+      const originalPick = currentPicks.find(op => op.gameId === pick.gameId);
+      return !originalPick || originalPick.team !== pick.team || originalPick.spread !== pick.spread;
+    });
+  };
+
+  const getButtonText = () => {
+    const userName = users.find(u => u.id === selectedUser)?.name || 'Unknown User';
+
+    if (!hasExistingPicks) {
+      return `Save Picks for ${userName} (${selectedPicks.length}/${games.length})`;
+    } else if (arePicksModified()) {
+      return `Update Picks for ${userName} (${selectedPicks.length}/${games.length})`;
+    } else {
+      return `Picks Saved for ${userName} (${selectedPicks.length}/${games.length})`;
+    }
+  };
+
+  const formatGameTime = (kickoffEt: string) => {
+    const date = new Date(kickoffEt);
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timezoneAbbr = new Date().toLocaleTimeString('en-US', {
+      timeZoneName: 'short'
+    }).split(' ')[2];
+
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: userTimezone
+    }) + ` ${timezoneAbbr}`;
+  };
+
+  const getGameSelectionState = (gameId: string) => {
+    const gamePick = selectedPicks.find(p => p.gameId === gameId);
+    return gamePick ? gamePick.team : null;
+  };
+
+  const isGameLocked = (game: Game) => {
+    const gameTime = new Date(game.kickoff_et);
+    const now = new Date();
+    return now >= gameTime;
+  };
+
+  const getMascotName = (teamName: string) => {
+    return teamName.split(' ').slice(-1)[0];
+  };
+
+  const getTeamLogo = (teamName: string) => {
+    const teamLogos: { [key: string]: string } = {
+      'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
+      'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
+      'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
+      'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
+      'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
+      'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
+      'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
+      'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
+      'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
+      'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
+      'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
+      'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
+      'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
+      'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
+      'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
+      'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
+      'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
+      'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
+      'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
+      'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
+      'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
+      'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
+      'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
+      'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
+      'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
+      'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
+      'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
+      'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
+      'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
+      'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
+      'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
+      'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
+    };
+    return teamLogos[teamName] || '';
+  };
+
+  return (
+    <div>
+      <div className="mb-4">
+        {!selectedUser ? (
+          <p className="text-sm text-red-600 font-medium">
+            Please select your name from the dropdown above before making picks
+          </p>
+        ) : (
+          <p className="text-sm text-gray-600">
+            {hasExistingPicks
+              ? `Update your picks - Select teams for each game (${selectedPicks.length}/${games.length} selected)`
+              : `Select teams for each game (${selectedPicks.length}/${games.length} selected)`
+            }
+          </p>
+        )}
+        {hasExistingPicks && !arePicksModified() && selectedPicks.length >= 1 && (
+          <p className="text-sm text-green-600 mt-1">
+            Your picks have been saved. Make changes to update them.
+          </p>
+        )}
+        {selectedPicks.length < games.length && selectedPicks.length > 0 && (
+          <p className="text-sm text-orange-600 mt-1">
+            You can save partial picks now and complete the rest later.
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {games.map(game => {
+          const selectedTeam = getGameSelectionState(game.id);
+          const gameLocked = isGameLocked(game);
+
+          return (
+            <div key={game.id} className={`border rounded-lg p-4 shadow-md transition-shadow ${
+              gameLocked ? 'bg-gray-50 border-gray-300' : 'bg-white hover:shadow-lg'
+            }`}>
+              <div className="mb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className={`text-lg font-bold ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                      {getMascotName(game.away)} @ {getMascotName(game.home)}
+                    </span>
+                    <span className={`text-sm ml-3 ${gameLocked ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {formatGameTime(game.kickoff_et)}
+                    </span>
+                  </div>
+                  {gameLocked && (
+                    <div className="flex items-center text-red-600">
+                      <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-xs font-medium">LOCKED</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {/* Away Team Option */}
+                <div
+                  className={`flex items-center space-x-3 p-3 rounded border transition-colors ${
+                    gameLocked
+                      ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60'
+                      : selectedTeam === game.away
+                        ? 'border-green-500 bg-green-50 cursor-pointer'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer'
+                  }`}
+                  onClick={() => !gameLocked && handleTeamToggle(game.id, game.away, game.spread_away)}
+                >
+                  <input
+                    type="radio"
+                    name={`playoff-game-${game.id}`}
+                    checked={selectedTeam === game.away}
+                    onChange={() => !gameLocked && handleTeamToggle(game.id, game.away, game.spread_away)}
+                    disabled={gameLocked}
+                    className="h-4 w-4 text-green-600 focus:ring-green-500"
+                  />
+                  {getTeamLogo(game.away) && (
+                    <img
+                      src={getTeamLogo(game.away)}
+                      alt={game.away}
+                      className="w-8 h-8 object-contain"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  )}
+                  <div className="flex-1">
+                    <div className={`font-medium text-lg ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                      {game.away}
+                    </div>
+                    <div className={`text-lg font-bold ${gameLocked ? 'text-gray-400' : 'text-green-600'}`}>
+                      {game.spread_away > 0 ? `+${game.spread_away}` : game.spread_away}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Home Team Option */}
+                <div
+                  className={`flex items-center space-x-3 p-3 rounded border transition-colors ${
+                    gameLocked
+                      ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60'
+                      : selectedTeam === game.home
+                        ? 'border-green-500 bg-green-50 cursor-pointer'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer'
+                  }`}
+                  onClick={() => !gameLocked && handleTeamToggle(game.id, game.home, game.spread_home)}
+                >
+                  <input
+                    type="radio"
+                    name={`playoff-game-${game.id}`}
+                    checked={selectedTeam === game.home}
+                    onChange={() => !gameLocked && handleTeamToggle(game.id, game.home, game.spread_home)}
+                    disabled={gameLocked}
+                    className="h-4 w-4 text-green-600 focus:ring-green-500"
+                  />
+                  {getTeamLogo(game.home) && (
+                    <img
+                      src={getTeamLogo(game.home)}
+                      alt={game.home}
+                      className="w-8 h-8 object-contain"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  )}
+                  <div className="flex-1">
+                    <div className={`font-medium text-lg ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                      {game.home}
+                    </div>
+                    <div className={`text-lg font-bold ${gameLocked ? 'text-gray-400' : 'text-green-600'}`}>
+                      {game.spread_home > 0 ? `+${game.spread_home}` : game.spread_home}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={!selectedUser || selectedPicks.length < 1 || (hasExistingPicks && !arePicksModified())}
+        className={`w-full py-2 px-4 rounded-md ${
+          !selectedUser || selectedPicks.length < 1
+            ? 'bg-gray-400 text-white cursor-not-allowed'
+            : hasExistingPicks && !arePicksModified()
+              ? 'bg-green-600 text-white cursor-not-allowed'
+              : hasExistingPicks && arePicksModified()
+                ? 'bg-orange-600 text-white hover:bg-orange-700'
+                : 'bg-green-600 text-white hover:bg-green-700'
+        }`}
+      >
+        {getButtonText()}
+      </button>
+    </div>
+  );
+}
+
+function PlayoffPickChart({ picks, users, playoffWeek, games, teamAbbreviations }: PlayoffPickChartProps) {
+  const getAbbreviation = (teamName: string) => {
+    return teamAbbreviations[teamName] || teamName.substring(0, 3).toUpperCase();
+  };
+
+  const getMascotName = (teamName: string) => {
+    return teamName.split(' ').slice(-1)[0];
+  };
+
+  // Get picks for the current playoff week
+  const playoffPicks = picks.filter(p => p.week === playoffWeek);
+
+  // Get unique game matchups from the games list
+  const gameMatchups = games.map(game => ({
+    id: game.id,
+    away: game.away,
+    home: game.home,
+    awayAbbr: getAbbreviation(game.away),
+    homeAbbr: getAbbreviation(game.home),
+    awayMascot: getMascotName(game.away),
+    homeMascot: getMascotName(game.home)
+  }));
+
+  // Calculate totals for each user
+  const getUserTotals = (userId: string) => {
+    const userPicks = playoffPicks.find(p => p.userId === userId);
+    if (!userPicks) return { correct: 0, total: 0 };
+
+    const gradedPicks = userPicks.picks.filter(p => p.correct !== undefined);
+    const correctPicks = gradedPicks.filter(p => p.correct === true).length;
+    const totalPicks = userPicks.picks.length;
+
+    return { correct: correctPicks, total: totalPicks };
+  };
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+              User
+            </th>
+            {gameMatchups.map(game => (
+              <th key={game.id} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <div>{game.awayMascot}</div>
+                <div className="text-gray-400">@</div>
+                <div>{game.homeMascot}</div>
+              </th>
+            ))}
+            <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Total
+            </th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {users.map(user => {
+            const userPick = playoffPicks.find(p => p.userId === user.id);
+            const totals = getUserTotals(user.id);
+
+            return (
+              <tr key={user.id} className="hover:bg-gray-50">
+                <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white">
+                  {user.name}
+                </td>
+                {gameMatchups.map(game => {
+                  const pick = userPick?.picks.find(p => p.gameId === game.id);
+
+                  if (!pick) {
+                    return (
+                      <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center text-sm text-gray-400">
+                        -
+                      </td>
+                    );
+                  }
+
+                  const isCorrect = pick.correct === true;
+                  const isIncorrect = pick.correct === false;
+                  const isPush = pick.correct === null;
+                  const isPending = pick.correct === undefined;
+
+                  return (
+                    <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center">
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
+                        isCorrect ? 'bg-green-100 text-green-800' :
+                        isIncorrect ? 'bg-red-100 text-red-800' :
+                        isPush ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {getAbbreviation(pick.team)}
+                        {pick.spread > 0 ? ` +${pick.spread}` : ` ${pick.spread}`}
+                      </span>
+                    </td>
+                  );
+                })}
+                <td className="px-3 py-4 whitespace-nowrap text-center text-sm font-bold">
+                  {totals.total > 0 ? (
+                    <span className={totals.correct > 0 ? 'text-green-600' : 'text-gray-600'}>
+                      {totals.correct}/{totals.total}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function Leaderboard({ users, picks, currentWeek }: LeaderboardProps) {
