@@ -25,9 +25,10 @@ interface WeatherData {
 
 interface TeamPick {
   gameId: string;
-  team: string; // team name selected
-  spread: number; // spread for the selected team
+  team: string; // team name selected, or "OVER"/"UNDER" for totals
+  spread: number; // spread for the selected team, or total line for O/U
   correct?: boolean; // whether this pick was correct (optional, for future use)
+  pickType?: 'spread' | 'total'; // type of pick (defaults to 'spread' for backwards compatibility)
 }
 
 interface Pick {
@@ -63,10 +64,10 @@ function App() {
     return savedUser || ''; // Empty string forces user selection
   });
   const [activeTab, setActiveTab] = useState<'picks' | 'leaderboard' | 'chart' | 'history' | 'insights' | 'nfl-trends'>('leaderboard');
-  const [playoffTab, setPlayoffTab] = useState<'picks' | 'chart'>('picks');
+  const [playoffTab, setPlayoffTab] = useState<'picks' | 'chart' | 'leaderboard'>('picks');
   const [mode, setMode] = useState<'regular' | 'playoffs'>('playoffs'); // Default to playoffs since we're in playoff season
   const [playoffGames, setPlayoffGames] = useState<Game[]>([]);
-  const [playoffWeek, setPlayoffWeek] = useState(100); // 100 = Wild Card, 101 = Divisional, 102 = Conference, 103 = Super Bowl
+  const [playoffWeek, setPlayoffWeek] = useState(101); // 100 = Wild Card, 101 = Divisional, 102 = Conference, 103 = Super Bowl
   const [teamAbbreviations, setTeamAbbreviations] = useState<{[key: string]: string}>({});
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
 
@@ -123,7 +124,7 @@ function App() {
   const loadPlayoffGames = async () => {
     try {
       // Load playoff games from CSV file
-      const response = await fetch(`${process.env.PUBLIC_URL}/lines/nfl_playoff_wildcard.csv`);
+      const response = await fetch(`${process.env.PUBLIC_URL}/lines/nfl_playoff_divisional.csv`);
       const csvText = await response.text();
 
       Papa.parse(csvText, {
@@ -222,24 +223,31 @@ function App() {
             correct: 0
           };
         }
-        
+
+        // Parse O/U picks - they are stored with "O/U:" prefix and "-ou" suffix on game_id
+        const isTotal = pick.team.startsWith('O/U:');
+        const team = isTotal ? pick.team.substring(4) : pick.team;
+        const gameId = isTotal ? pick.game_id.replace('-ou', '') : pick.game_id;
+        const pickType = isTotal ? 'total' : 'spread';
+
         acc[key].picks.push({
-          gameId: pick.game_id,
-          team: pick.team,
+          gameId: gameId,
+          team: team,
           spread: pick.spread,
-          correct: pick.correct
+          correct: pick.correct,
+          pickType: pickType
         });
-        
+
         if (pick.correct === true) {
           acc[key].correct++;
         }
-        
+
         return acc;
       }, {});
 
       const picksArray = Object.values(groupedPicks);
       setPicks(picksArray as Pick[]);
-      
+
     } catch (error) {
       console.error('Error loading picks:', error);
       setPicks([]);
@@ -256,11 +264,12 @@ function App() {
         .eq('week', week);
 
       // Then insert the new picks
+      // For totals, prefix the team with "O/U:" and add "-ou" to game_id to avoid unique constraint
       const pickRecords = selectedPicks.map(pick => ({
         user_id: userId,
         week: week,
-        game_id: pick.gameId,
-        team: pick.team,
+        game_id: pick.pickType === 'total' ? `${pick.gameId}-ou` : pick.gameId,
+        team: pick.pickType === 'total' ? `O/U:${pick.team}` : pick.team,
         spread: pick.spread,
         correct: null // Will be set later when games finish
       }));
@@ -273,9 +282,9 @@ function App() {
 
       // Reload picks to update UI
       await loadPicks();
-      
+
       alert('Picks saved successfully!');
-      
+
     } catch (error) {
       console.error('Error saving picks:', error);
       alert('Error saving picks. Please try again.');
@@ -465,11 +474,12 @@ function App() {
               <nav className="flex space-x-4 md:space-x-8 overflow-x-auto pb-2">
                 {[
                   { key: 'picks', label: 'Make Picks' },
+                  { key: 'leaderboard', label: 'Leaderboard' },
                   { key: 'chart', label: 'Pick Chart' }
                 ].map(tab => (
                   <button
                     key={tab.key}
-                    onClick={() => setPlayoffTab(tab.key as 'picks' | 'chart')}
+                    onClick={() => setPlayoffTab(tab.key as 'picks' | 'chart' | 'leaderboard')}
                     className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
                       playoffTab === tab.key
                         ? 'border-green-500 text-green-600'
@@ -517,7 +527,7 @@ function App() {
             {playoffTab === 'picks' && (
               <div className="mb-8">
                 <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-                  {selectedUser ? `${users.find(u => u.id === selectedUser)?.name}'s Playoff Picks - Wild Card` : 'Wild Card Picks'}
+                  {selectedUser ? `${users.find(u => u.id === selectedUser)?.name}'s Playoff Picks - Divisional` : 'Divisional Round Picks'}
                 </h2>
 
                 <PlayoffPickInterface
@@ -533,13 +543,24 @@ function App() {
             {/* Playoff Pick Chart Tab */}
             {playoffTab === 'chart' && (
               <div className="bg-white rounded-lg shadow p-6 mb-8">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-4">Playoff Pick Chart - Wild Card</h2>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">Playoff Pick Chart</h2>
                 <PlayoffPickChart
                   picks={picks}
                   users={users}
-                  playoffWeek={playoffWeek}
-                  games={playoffGames}
+                  currentPlayoffWeek={playoffWeek}
                   teamAbbreviations={teamAbbreviations}
+                />
+              </div>
+            )}
+
+            {/* Playoff Leaderboard Tab */}
+            {playoffTab === 'leaderboard' && (
+              <div className="bg-white rounded-lg shadow p-6 mb-8">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">Playoff Leaderboard</h2>
+                <PlayoffLeaderboard
+                  picks={picks}
+                  users={users}
+                  playoffWeek={playoffWeek}
                 />
               </div>
             )}
@@ -969,27 +990,187 @@ interface PlayoffPickInterfaceProps {
 interface PlayoffPickChartProps {
   picks: Pick[];
   users: User[];
-  playoffWeek: number;
-  games: Game[];
+  currentPlayoffWeek: number;
   teamAbbreviations: {[key: string]: string};
 }
 
+interface PlayoffLeaderboardProps {
+  picks: Pick[];
+  users: User[];
+  playoffWeek: number;
+}
+
+function PlayoffLeaderboard({ picks, users, playoffWeek }: PlayoffLeaderboardProps) {
+  // Get all playoff picks (week >= 100)
+  const playoffPicks = picks.filter(p => p.week >= 100 && p.week <= playoffWeek);
+
+  const getUserTotalCorrect = (userId: string) => {
+    return playoffPicks.filter(p => p.userId === userId).reduce((sum, pick) => {
+      return sum + pick.picks.filter(teamPick => teamPick.correct === true).length;
+    }, 0);
+  };
+
+  const getUserTotalPicks = (userId: string) => {
+    return playoffPicks.filter(p => p.userId === userId).reduce((sum, pick) => {
+      return sum + pick.picks.length;
+    }, 0);
+  };
+
+  const getUserPercentage = (userId: string) => {
+    const total = getUserTotalPicks(userId);
+    if (total === 0) return 0;
+    return Math.round((getUserTotalCorrect(userId) / total) * 100);
+  };
+
+  // Create leaderboard data with calculated stats
+  const sortedData = users.map(user => ({
+    id: user.id,
+    name: user.name,
+    totalCorrect: getUserTotalCorrect(user.id),
+    totalPicks: getUserTotalPicks(user.id),
+    percentage: getUserPercentage(user.id)
+  })).sort((a, b) => {
+    // Sort by total correct first, then by percentage
+    if (b.totalCorrect !== a.totalCorrect) {
+      return b.totalCorrect - a.totalCorrect;
+    }
+    return b.percentage - a.percentage;
+  });
+
+  // Add standard competition ranking (1224 ranking)
+  const leaderboardData: Array<typeof sortedData[0] & { rank: number }> = [];
+  for (let i = 0; i < sortedData.length; i++) {
+    let rank = 1;
+    if (i > 0) {
+      const prevUser = leaderboardData[i - 1];
+      const currentUser = sortedData[i];
+
+      // If total correct is the same as previous user, use same rank
+      if (prevUser.totalCorrect === currentUser.totalCorrect) {
+        rank = prevUser.rank;
+      } else {
+        rank = i + 1;
+      }
+    }
+    leaderboardData.push({ ...sortedData[i], rank });
+  }
+
+  // Group stats
+  const groupStats = {
+    totalCorrect: leaderboardData.reduce((sum, user) => sum + user.totalCorrect, 0),
+    totalPicks: leaderboardData.reduce((sum, user) => sum + user.totalPicks, 0)
+  };
+  const groupPercentage = groupStats.totalPicks > 0 ? Math.round((groupStats.totalCorrect / groupStats.totalPicks) * 100) : 0;
+
+  return (
+    <div>
+      {/* Group Performance Summary */}
+      <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">League Performance</h3>
+          <div className="flex justify-center items-center space-x-8">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">
+                {groupStats.totalCorrect}/{groupStats.totalPicks}
+              </div>
+              <div className="text-sm text-blue-700">Total Correct Picks</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">
+                {groupPercentage}%
+              </div>
+              <div className="text-sm text-blue-700">League Success Rate</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Rank
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Name
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Correct
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Total
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Overall
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {leaderboardData.map((user) => {
+              const isTopPerformer = user.rank === 1 && user.percentage > 0;
+              return (
+                <tr key={user.id} className={isTopPerformer ? 'bg-yellow-50' : ''}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <div className="flex items-center">
+                      {user.rank === 1 && user.percentage > 0 && <span className="text-yellow-500 mr-2">🏆</span>}
+                      {user.rank === Math.max(...leaderboardData.map(u => u.rank)) && leaderboardData.length > 1 && <span className="text-red-500 mr-2">🤡</span>}
+                      #{user.rank}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {user.name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className="font-semibold">{user.totalCorrect}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {user.totalPicks}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <span className={`font-semibold px-2 py-1 rounded ${
+                      user.percentage >= 60 ? 'bg-green-100 text-green-800' :
+                      user.percentage >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                      user.percentage > 0 ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-500'
+                    }`}>
+                      {user.percentage}%
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, users }: PlayoffPickInterfaceProps) {
-  const [selectedPicks, setSelectedPicks] = useState<TeamPick[]>(currentPicks);
+  // Separate spread picks and total picks from currentPicks
+  const currentSpreadPicks = currentPicks.filter(p => !p.pickType || p.pickType === 'spread');
+  const currentTotalPicks = currentPicks.filter(p => p.pickType === 'total');
+
+  const [spreadPicks, setSpreadPicks] = useState<TeamPick[]>(currentSpreadPicks);
+  const [totalPicks, setTotalPicks] = useState<TeamPick[]>(currentTotalPicks);
   const [hasExistingPicks, setHasExistingPicks] = useState<boolean>(currentPicks.length > 0);
 
   React.useEffect(() => {
-    setSelectedPicks(currentPicks);
+    const spreadFromCurrent = currentPicks.filter(p => !p.pickType || p.pickType === 'spread');
+    const totalFromCurrent = currentPicks.filter(p => p.pickType === 'total');
+    setSpreadPicks(spreadFromCurrent);
+    setTotalPicks(totalFromCurrent);
     setHasExistingPicks(currentPicks.length > 0);
   }, [currentPicks]);
 
-  const handleTeamToggle = (gameId: string, team: string, spread: number) => {
+  const handleSpreadToggle = (gameId: string, team: string, spread: number) => {
     const game = games.find(g => g.id === gameId);
     if (game && isGameLocked(game)) {
       return;
     }
 
-    setSelectedPicks(prev => {
+    setSpreadPicks(prev => {
       const existingPickIndex = prev.findIndex(p => p.gameId === gameId && p.team === team);
 
       if (existingPickIndex >= 0) {
@@ -1000,41 +1181,82 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
 
       if (otherTeamIndex >= 0) {
         const newPicks = [...prev];
-        newPicks[otherTeamIndex] = { gameId, team, spread };
+        newPicks[otherTeamIndex] = { gameId, team, spread, pickType: 'spread' };
         return newPicks;
       }
 
-      // No limit on picks for playoffs - can pick all games
-      return [...prev, { gameId, team, spread }];
+      return [...prev, { gameId, team, spread, pickType: 'spread' }];
+    });
+  };
+
+  const handleTotalToggle = (gameId: string, selection: 'OVER' | 'UNDER', total: number) => {
+    const game = games.find(g => g.id === gameId);
+    if (game && isGameLocked(game)) {
+      return;
+    }
+
+    setTotalPicks(prev => {
+      // Check if this exact selection exists
+      const existingPickIndex = prev.findIndex(p => p.gameId === gameId && p.team === selection);
+
+      if (existingPickIndex >= 0) {
+        // Deselect - remove it
+        return prev.filter((_, index) => index !== existingPickIndex);
+      }
+
+      // Check if the other selection (OVER vs UNDER) for this game exists
+      const otherSelectionIndex = prev.findIndex(p => p.gameId === gameId);
+
+      if (otherSelectionIndex >= 0) {
+        // Replace with new selection
+        const newPicks = [...prev];
+        newPicks[otherSelectionIndex] = { gameId, team: selection, spread: total, pickType: 'total' };
+        return newPicks;
+      }
+
+      // Check if already at max (2 total picks)
+      if (prev.length >= 2) {
+        return prev; // Don't add more
+      }
+
+      return [...prev, { gameId, team: selection, spread: total, pickType: 'total' }];
     });
   };
 
   const handleSave = () => {
-    // Allow saving with at least 1 pick (partial submission allowed)
-    if (selectedPicks.length >= 1) {
-      onSavePicks(selectedPicks);
+    // Require all 4 spread picks, allow 0-2 total picks
+    if (spreadPicks.length === games.length) {
+      const allPicks = [...spreadPicks, ...totalPicks];
+      onSavePicks(allPicks);
     }
   };
 
   const arePicksModified = () => {
-    if (!hasExistingPicks && selectedPicks.length > 0) return true;
-    if (hasExistingPicks && selectedPicks.length !== currentPicks.length) return true;
+    const allPicks = [...spreadPicks, ...totalPicks];
+    if (!hasExistingPicks && allPicks.length > 0) return true;
+    if (hasExistingPicks && allPicks.length !== currentPicks.length) return true;
 
-    return selectedPicks.some(pick => {
-      const originalPick = currentPicks.find(op => op.gameId === pick.gameId);
-      return !originalPick || originalPick.team !== pick.team || originalPick.spread !== pick.spread;
+    return allPicks.some(pick => {
+      const originalPick = currentPicks.find(op =>
+        op.gameId === pick.gameId &&
+        op.team === pick.team &&
+        (op.pickType || 'spread') === (pick.pickType || 'spread')
+      );
+      return !originalPick || originalPick.spread !== pick.spread;
     });
   };
 
   const getButtonText = () => {
     const userName = users.find(u => u.id === selectedUser)?.name || 'Unknown User';
+    const totalPickCount = spreadPicks.length + totalPicks.length;
+    const maxPicks = games.length + 2; // 4 spreads + 2 totals
 
     if (!hasExistingPicks) {
-      return `Save Picks for ${userName} (${selectedPicks.length}/${games.length})`;
+      return `Save Picks for ${userName} (${totalPickCount}/${maxPicks})`;
     } else if (arePicksModified()) {
-      return `Update Picks for ${userName} (${selectedPicks.length}/${games.length})`;
+      return `Update Picks for ${userName} (${totalPickCount}/${maxPicks})`;
     } else {
-      return `Picks Saved for ${userName} (${selectedPicks.length}/${games.length})`;
+      return `Picks Saved for ${userName} (${totalPickCount}/${maxPicks})`;
     }
   };
 
@@ -1055,8 +1277,13 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
     }) + ` ${timezoneAbbr}`;
   };
 
-  const getGameSelectionState = (gameId: string) => {
-    const gamePick = selectedPicks.find(p => p.gameId === gameId);
+  const getSpreadSelectionState = (gameId: string) => {
+    const gamePick = spreadPicks.find((p: TeamPick) => p.gameId === gameId);
+    return gamePick ? gamePick.team : null;
+  };
+
+  const getTotalSelectionState = (gameId: string) => {
+    const gamePick = totalPicks.find((p: TeamPick) => p.gameId === gameId);
     return gamePick ? gamePick.team : null;
   };
 
@@ -1108,131 +1335,142 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
     return teamLogos[teamName] || '';
   };
 
+  const canAddMoreTotals = totalPicks.length < 2;
+  const allSpreadsSelected = spreadPicks.length === games.length;
+
   return (
     <div>
-      <div className="mb-4">
+      {/* Instructions */}
+      <div className="mb-6">
         {!selectedUser ? (
           <p className="text-sm text-red-600 font-medium">
             Please select your name from the dropdown above before making picks
           </p>
         ) : (
-          <p className="text-sm text-gray-600">
-            {hasExistingPicks
-              ? `Update your picks - Select teams for each game (${selectedPicks.length}/${games.length} selected)`
-              : `Select teams for each game (${selectedPicks.length}/${games.length} selected)`
-            }
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-700">
+              <span className="font-semibold">Spread Picks:</span> Pick all {games.length} games against the spread (required)
+            </p>
+            <p className="text-sm text-gray-700">
+              <span className="font-semibold">Over/Under Picks:</span> Pick up to 2 totals
+            </p>
+          </div>
         )}
-        {hasExistingPicks && !arePicksModified() && selectedPicks.length >= 1 && (
-          <p className="text-sm text-green-600 mt-1">
+        {hasExistingPicks && !arePicksModified() && (
+          <p className="text-sm text-green-600 mt-2">
             Your picks have been saved. Make changes to update them.
-          </p>
-        )}
-        {selectedPicks.length < games.length && selectedPicks.length > 0 && (
-          <p className="text-sm text-orange-600 mt-1">
-            You can save partial picks now and complete the rest later.
           </p>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {games.map(game => {
-          const selectedTeam = getGameSelectionState(game.id);
-          const gameLocked = isGameLocked(game);
+      {/* Spread Picks Section */}
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          Spread Picks
+          <span className={`ml-2 text-sm font-normal ${allSpreadsSelected ? 'text-green-600' : 'text-orange-600'}`}>
+            ({spreadPicks.length}/{games.length} selected)
+          </span>
+        </h3>
 
-          return (
-            <div key={game.id} className={`border rounded-lg p-4 shadow-md transition-shadow ${
-              gameLocked ? 'bg-gray-50 border-gray-300' : 'bg-white hover:shadow-lg'
-            }`}>
-              <div className="mb-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className={`text-lg font-bold ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
-                      {getMascotName(game.away)} @ {getMascotName(game.home)}
-                    </span>
-                    <span className={`text-sm ml-3 ${gameLocked ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {formatGameTime(game.kickoff_et)}
-                    </span>
-                  </div>
-                  {gameLocked && (
-                    <div className="flex items-center text-red-600">
-                      <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-xs font-medium">LOCKED</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {games.map(game => {
+            const selectedTeam = getSpreadSelectionState(game.id);
+            const gameLocked = isGameLocked(game);
+
+            return (
+              <div key={game.id} className={`border rounded-lg p-4 shadow-md transition-shadow ${
+                gameLocked ? 'bg-gray-50 border-gray-300' : 'bg-white hover:shadow-lg'
+              }`}>
+                <div className="mb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className={`text-lg font-bold ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                        {getMascotName(game.away)} @ {getMascotName(game.home)}
+                      </span>
+                      <span className={`text-sm ml-3 ${gameLocked ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {formatGameTime(game.kickoff_et)}
+                      </span>
                     </div>
-                  )}
+                    {gameLocked && (
+                      <div className="flex items-center text-red-600">
+                        <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-xs font-medium">LOCKED</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-3">
-                {/* Away Team Option */}
-                <div
-                  className={`flex items-center space-x-3 p-3 rounded border transition-colors ${
-                    gameLocked
-                      ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60'
-                      : selectedTeam === game.away
-                        ? 'border-green-500 bg-green-50 cursor-pointer'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer'
-                  }`}
-                  onClick={() => !gameLocked && handleTeamToggle(game.id, game.away, game.spread_away)}
-                >
-                  <input
-                    type="radio"
-                    name={`playoff-game-${game.id}`}
-                    checked={selectedTeam === game.away}
-                    onChange={() => !gameLocked && handleTeamToggle(game.id, game.away, game.spread_away)}
-                    disabled={gameLocked}
-                    className="h-4 w-4 text-green-600 focus:ring-green-500"
-                  />
-                  {getTeamLogo(game.away) && (
-                    <img
-                      src={getTeamLogo(game.away)}
-                      alt={game.away}
-                      className="w-8 h-8 object-contain"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                <div className="space-y-2">
+                  {/* Away Team Option */}
+                  <div
+                    className={`flex items-center space-x-3 p-3 rounded border transition-colors ${
+                      gameLocked
+                        ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60'
+                        : selectedTeam === game.away
+                          ? 'border-green-500 bg-green-50 cursor-pointer'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer'
+                    }`}
+                    onClick={() => !gameLocked && handleSpreadToggle(game.id, game.away, game.spread_away)}
+                  >
+                    <input
+                      type="radio"
+                      name={`playoff-spread-${game.id}`}
+                      checked={selectedTeam === game.away}
+                      onChange={() => !gameLocked && handleSpreadToggle(game.id, game.away, game.spread_away)}
+                      disabled={gameLocked}
+                      className="h-4 w-4 text-green-600 focus:ring-green-500"
                     />
-                  )}
-                  <div className="flex-1">
-                    <div className={`font-medium text-lg ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
-                      {game.away}
+                    {getTeamLogo(game.away) && (
+                      <img
+                        src={getTeamLogo(game.away)}
+                        alt={game.away}
+                        className="w-8 h-8 object-contain"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
+                    <div className="flex-1">
+                      <div className={`font-medium ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                        {game.away}
+                      </div>
                     </div>
                     <div className={`text-lg font-bold ${gameLocked ? 'text-gray-400' : 'text-green-600'}`}>
                       {game.spread_away > 0 ? `+${game.spread_away}` : game.spread_away}
                     </div>
                   </div>
-                </div>
 
-                {/* Home Team Option */}
-                <div
-                  className={`flex items-center space-x-3 p-3 rounded border transition-colors ${
-                    gameLocked
-                      ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60'
-                      : selectedTeam === game.home
-                        ? 'border-green-500 bg-green-50 cursor-pointer'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer'
-                  }`}
-                  onClick={() => !gameLocked && handleTeamToggle(game.id, game.home, game.spread_home)}
-                >
-                  <input
-                    type="radio"
-                    name={`playoff-game-${game.id}`}
-                    checked={selectedTeam === game.home}
-                    onChange={() => !gameLocked && handleTeamToggle(game.id, game.home, game.spread_home)}
-                    disabled={gameLocked}
-                    className="h-4 w-4 text-green-600 focus:ring-green-500"
-                  />
-                  {getTeamLogo(game.home) && (
-                    <img
-                      src={getTeamLogo(game.home)}
-                      alt={game.home}
-                      className="w-8 h-8 object-contain"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  {/* Home Team Option */}
+                  <div
+                    className={`flex items-center space-x-3 p-3 rounded border transition-colors ${
+                      gameLocked
+                        ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60'
+                        : selectedTeam === game.home
+                          ? 'border-green-500 bg-green-50 cursor-pointer'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer'
+                    }`}
+                    onClick={() => !gameLocked && handleSpreadToggle(game.id, game.home, game.spread_home)}
+                  >
+                    <input
+                      type="radio"
+                      name={`playoff-spread-${game.id}`}
+                      checked={selectedTeam === game.home}
+                      onChange={() => !gameLocked && handleSpreadToggle(game.id, game.home, game.spread_home)}
+                      disabled={gameLocked}
+                      className="h-4 w-4 text-green-600 focus:ring-green-500"
                     />
-                  )}
-                  <div className="flex-1">
-                    <div className={`font-medium text-lg ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
-                      {game.home}
+                    {getTeamLogo(game.home) && (
+                      <img
+                        src={getTeamLogo(game.home)}
+                        alt={game.home}
+                        className="w-8 h-8 object-contain"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
+                    <div className="flex-1">
+                      <div className={`font-medium ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                        {game.home}
+                      </div>
                     </div>
                     <div className={`text-lg font-bold ${gameLocked ? 'text-gray-400' : 'text-green-600'}`}>
                       {game.spread_home > 0 ? `+${game.spread_home}` : game.spread_home}
@@ -1240,16 +1478,89 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
+      {/* Over/Under Picks Section */}
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          Over/Under Picks
+          <span className={`ml-2 text-sm font-normal ${totalPicks.length > 0 ? 'text-blue-600' : 'text-gray-500'}`}>
+            ({totalPicks.length}/2 selected)
+          </span>
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {games.map(game => {
+            const selectedTotal = getTotalSelectionState(game.id);
+            const gameLocked = isGameLocked(game);
+            const hasSelection = selectedTotal !== null;
+            const canSelect = canAddMoreTotals || hasSelection;
+
+            return (
+              <div key={`total-${game.id}`} className={`border rounded-lg p-4 shadow-md transition-shadow ${
+                gameLocked ? 'bg-gray-50 border-gray-300' : 'bg-white hover:shadow-lg'
+              }`}>
+                <div className="mb-3">
+                  <div className="flex items-center justify-between">
+                    <span className={`font-bold ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                      {getMascotName(game.away)} @ {getMascotName(game.home)}
+                    </span>
+                    <span className={`text-lg font-semibold ${gameLocked ? 'text-gray-400' : 'text-blue-600'}`}>
+                      O/U {game.total}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex space-x-3">
+                  {/* Over Button */}
+                  <button
+                    className={`flex-1 py-3 px-4 rounded-lg border-2 font-semibold transition-colors ${
+                      gameLocked
+                        ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : selectedTotal === 'OVER'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : canSelect
+                            ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700'
+                            : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                    }`}
+                    onClick={() => !gameLocked && canSelect && handleTotalToggle(game.id, 'OVER', game.total)}
+                    disabled={gameLocked || !canSelect}
+                  >
+                    OVER {game.total}
+                  </button>
+
+                  {/* Under Button */}
+                  <button
+                    className={`flex-1 py-3 px-4 rounded-lg border-2 font-semibold transition-colors ${
+                      gameLocked
+                        ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : selectedTotal === 'UNDER'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : canSelect
+                            ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700'
+                            : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                    }`}
+                    onClick={() => !gameLocked && canSelect && handleTotalToggle(game.id, 'UNDER', game.total)}
+                    disabled={gameLocked || !canSelect}
+                  >
+                    UNDER {game.total}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Save Button */}
       <button
         onClick={handleSave}
-        disabled={!selectedUser || selectedPicks.length < 1 || (hasExistingPicks && !arePicksModified())}
-        className={`w-full py-2 px-4 rounded-md ${
-          !selectedUser || selectedPicks.length < 1
+        disabled={!selectedUser || !allSpreadsSelected || (hasExistingPicks && !arePicksModified())}
+        className={`w-full py-3 px-4 rounded-md text-lg font-semibold ${
+          !selectedUser || !allSpreadsSelected
             ? 'bg-gray-400 text-white cursor-not-allowed'
             : hasExistingPicks && !arePicksModified()
               ? 'bg-green-600 text-white cursor-not-allowed'
@@ -1260,11 +1571,64 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
       >
         {getButtonText()}
       </button>
+      {!allSpreadsSelected && selectedUser && (
+        <p className="text-sm text-orange-600 mt-2 text-center">
+          Select all {games.length} spread picks to save
+        </p>
+      )}
     </div>
   );
 }
 
-function PlayoffPickChart({ picks, users, playoffWeek, games, teamAbbreviations }: PlayoffPickChartProps) {
+function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations }: PlayoffPickChartProps) {
+  const [selectedWeek, setSelectedWeek] = useState(currentPlayoffWeek);
+  const [games, setGames] = useState<Game[]>([]);
+
+  const playoffWeeks = [
+    { week: 100, name: 'Wild Card', file: 'nfl_playoff_wildcard.csv' },
+    { week: 101, name: 'Divisional', file: 'nfl_playoff_divisional.csv' },
+    { week: 102, name: 'Conference', file: 'nfl_playoff_conference.csv' },
+    { week: 103, name: 'Super Bowl', file: 'nfl_playoff_superbowl.csv' }
+  ];
+
+  // Only show weeks up to and including the current playoff week
+  const availableWeeks = playoffWeeks.filter(w => w.week <= currentPlayoffWeek);
+
+  useEffect(() => {
+    const loadGamesForWeek = async () => {
+      const weekInfo = playoffWeeks.find(w => w.week === selectedWeek);
+      if (!weekInfo) return;
+
+      try {
+        const response = await fetch(`${process.env.PUBLIC_URL}/lines/${weekInfo.file}`);
+        const csvText = await response.text();
+
+        Papa.parse(csvText, {
+          header: true,
+          complete: (results) => {
+            const csvGames: Game[] = results.data.map((row: any, index: number) => ({
+              id: `playoff-${index + 1}`,
+              kickoff_et: row.kickoff_et,
+              away: row.away,
+              home: row.home,
+              spread_away: parseFloat(row.spread_away),
+              spread_home: parseFloat(row.spread_home),
+              total: parseFloat(row.total),
+              spreads_book: row.spreads_book
+            })).filter((game: Game) => game.away && game.home);
+
+            setGames(csvGames);
+          }
+        });
+      } catch (error) {
+        console.error('Error loading playoff games:', error);
+        setGames([]);
+      }
+    };
+
+    loadGamesForWeek();
+  }, [selectedWeek]);
+
   const getAbbreviation = (teamName: string) => {
     return teamAbbreviations[teamName] || teamName.substring(0, 3).toUpperCase();
   };
@@ -1273,14 +1637,15 @@ function PlayoffPickChart({ picks, users, playoffWeek, games, teamAbbreviations 
     return teamName.split(' ').slice(-1)[0];
   };
 
-  // Get picks for the current playoff week
-  const playoffPicks = picks.filter(p => p.week === playoffWeek);
+  // Get picks for the selected playoff week
+  const playoffPicks = picks.filter(p => p.week === selectedWeek);
 
   // Get unique game matchups from the games list
-  const gameMatchups = games.map(game => ({
+  const gameMatchups = games.map((game: Game) => ({
     id: game.id,
     away: game.away,
     home: game.home,
+    total: game.total,
     awayAbbr: getAbbreviation(game.away),
     homeAbbr: getAbbreviation(game.home),
     awayMascot: getMascotName(game.away),
@@ -1299,80 +1664,176 @@ function PlayoffPickChart({ picks, users, playoffWeek, games, teamAbbreviations 
     return { correct: correctPicks, total: totalPicks };
   };
 
+  // Check if any user has O/U picks for this week
+  const hasAnyTotalPicks = playoffPicks.some(p =>
+    p.picks.some(pick => pick.pickType === 'total')
+  );
+
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
-              User
-            </th>
-            {gameMatchups.map(game => (
-              <th key={game.id} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <div>{game.awayMascot}</div>
-                <div className="text-gray-400">@</div>
-                <div>{game.homeMascot}</div>
-              </th>
-            ))}
-            <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Total
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {users.map(user => {
-            const userPick = playoffPicks.find(p => p.userId === user.id);
-            const totals = getUserTotals(user.id);
+    <div>
+      {/* Week Selector */}
+      <div className="mb-4">
+        <div className="flex flex-wrap gap-2">
+          {availableWeeks.map(week => (
+            <button
+              key={week.week}
+              onClick={() => setSelectedWeek(week.week)}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                selectedWeek === week.week
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {week.name}
+            </button>
+          ))}
+        </div>
+      </div>
 
-            return (
-              <tr key={user.id} className="hover:bg-gray-50">
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white">
-                  {user.name}
-                </td>
-                {gameMatchups.map(game => {
-                  const pick = userPick?.picks.find(p => p.gameId === game.id);
+      {/* Spread Picks Table */}
+      <div className="mb-6">
+        <h4 className="text-sm font-semibold text-gray-700 mb-2">Spread Picks</h4>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                  User
+                </th>
+                {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => (
+                  <th key={game.id} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div>{game.awayMascot}</div>
+                    <div className="text-gray-400">@</div>
+                    <div>{game.homeMascot}</div>
+                  </th>
+                ))}
+                <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {users.map(user => {
+                const userPick = playoffPicks.find(p => p.userId === user.id);
+                const totals = getUserTotals(user.id);
 
-                  if (!pick) {
-                    return (
-                      <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center text-sm text-gray-400">
-                        -
-                      </td>
-                    );
-                  }
+                return (
+                  <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white">
+                      {user.name}
+                    </td>
+                    {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => {
+                      // Only show spread picks (not total picks)
+                      const pick = userPick?.picks.find(p => p.gameId === game.id && (!p.pickType || p.pickType === 'spread'));
 
-                  const isCorrect = pick.correct === true;
-                  const isIncorrect = pick.correct === false;
-                  const isPush = pick.correct === null;
-                  const isPending = pick.correct === undefined;
+                      if (!pick) {
+                        return (
+                          <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center text-sm text-gray-400">
+                            -
+                          </td>
+                        );
+                      }
+
+                      const isCorrect = pick.correct === true;
+                      const isIncorrect = pick.correct === false;
+                      const isPush = pick.correct === null;
+
+                      return (
+                        <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center">
+                          <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
+                            isCorrect ? 'bg-green-100 text-green-800' :
+                            isIncorrect ? 'bg-red-100 text-red-800' :
+                            isPush ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {getAbbreviation(pick.team)}
+                            {pick.spread > 0 ? ` +${pick.spread}` : ` ${pick.spread}`}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-4 whitespace-nowrap text-center text-sm font-bold">
+                      {totals.total > 0 ? (
+                        <span className={totals.correct > 0 ? 'text-green-600' : 'text-gray-600'}>
+                          {totals.correct}/{totals.total}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Over/Under Picks Table - Only show if there are any O/U picks */}
+      {(hasAnyTotalPicks || selectedWeek >= 101) && (
+        <div>
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">Over/Under Picks</h4>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-blue-50">
+                <tr>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-blue-50 z-10">
+                    User
+                  </th>
+                  {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => (
+                    <th key={`ou-${game.id}`} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div>{game.awayMascot} @ {game.homeMascot}</div>
+                      <div className="text-blue-600">O/U {game.total}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {users.map(user => {
+                  const userPick = playoffPicks.find(p => p.userId === user.id);
 
                   return (
-                    <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center">
-                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
-                        isCorrect ? 'bg-green-100 text-green-800' :
-                        isIncorrect ? 'bg-red-100 text-red-800' :
-                        isPush ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {getAbbreviation(pick.team)}
-                        {pick.spread > 0 ? ` +${pick.spread}` : ` ${pick.spread}`}
-                      </span>
-                    </td>
+                    <tr key={`ou-${user.id}`} className="hover:bg-gray-50">
+                      <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white">
+                        {user.name}
+                      </td>
+                      {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => {
+                        // Only show total picks
+                        const pick = userPick?.picks.find(p => p.gameId === game.id && p.pickType === 'total');
+
+                        if (!pick) {
+                          return (
+                            <td key={`ou-${game.id}`} className="px-3 py-4 whitespace-nowrap text-center text-sm text-gray-400">
+                              -
+                            </td>
+                          );
+                        }
+
+                        const isCorrect = pick.correct === true;
+                        const isIncorrect = pick.correct === false;
+                        const isPush = pick.correct === null;
+
+                        return (
+                          <td key={`ou-${game.id}`} className="px-3 py-4 whitespace-nowrap text-center">
+                            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
+                              isCorrect ? 'bg-green-100 text-green-800' :
+                              isIncorrect ? 'bg-red-100 text-red-800' :
+                              isPush ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-blue-100 text-blue-800'
+                            }`}>
+                              {pick.team} {pick.spread}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
                   );
                 })}
-                <td className="px-3 py-4 whitespace-nowrap text-center text-sm font-bold">
-                  {totals.total > 0 ? (
-                    <span className={totals.correct > 0 ? 'text-green-600' : 'text-gray-600'}>
-                      {totals.correct}/{totals.total}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
