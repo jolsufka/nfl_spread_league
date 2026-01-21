@@ -67,14 +67,14 @@ function App() {
   const [playoffTab, setPlayoffTab] = useState<'picks' | 'chart' | 'leaderboard'>('picks');
   const [mode, setMode] = useState<'regular' | 'playoffs'>('playoffs'); // Default to playoffs since we're in playoff season
   const [playoffGames, setPlayoffGames] = useState<Game[]>([]);
-  const [playoffWeek, setPlayoffWeek] = useState(101); // 100 = Wild Card, 101 = Divisional, 102 = Conference, 103 = Super Bowl
+  const [playoffWeek, setPlayoffWeek] = useState(102); // 100 = Wild Card, 101 = Divisional, 102 = Conference, 103 = Super Bowl
   const [teamAbbreviations, setTeamAbbreviations] = useState<{[key: string]: string}>({});
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
 
   useEffect(() => {
     // Load games from CSV (we'll create this from your odds script)
     loadGames();
-    loadPlayoffGames();
+    loadPlayoffGames(playoffWeek);
     loadPicks();
     loadTeamAbbreviations();
     loadWeatherData();
@@ -121,10 +121,17 @@ function App() {
     setGames([]);
   };
 
-  const loadPlayoffGames = async () => {
+  const loadPlayoffGames = async (week: number = 102) => {
     try {
-      // Load playoff games from CSV file
-      const response = await fetch(`${process.env.PUBLIC_URL}/lines/nfl_playoff_divisional.csv`);
+      // Load playoff games from CSV file based on current playoff week
+      const playoffFiles: { [key: number]: string } = {
+        100: 'nfl_playoff_wildcard.csv',
+        101: 'nfl_playoff_divisional.csv',
+        102: 'nfl_playoff_conference.csv',
+        103: 'nfl_playoff_superbowl.csv'
+      };
+      const filename = playoffFiles[week] || 'nfl_playoff_conference.csv';
+      const response = await fetch(`${process.env.PUBLIC_URL}/lines/${filename}`);
       const csvText = await response.text();
 
       Papa.parse(csvText, {
@@ -527,7 +534,7 @@ function App() {
             {playoffTab === 'picks' && (
               <div className="mb-8">
                 <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-                  {selectedUser ? `${users.find(u => u.id === selectedUser)?.name}'s Playoff Picks - Divisional` : 'Divisional Round Picks'}
+                  {selectedUser ? `${users.find(u => u.id === selectedUser)?.name}'s Playoff Picks - ${getPlayoffWeekName(playoffWeek)}` : `${getPlayoffWeekName(playoffWeek)} Round Picks`}
                 </h2>
 
                 <PlayoffPickInterface
@@ -1214,8 +1221,8 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
         return newPicks;
       }
 
-      // Check if already at max (2 total picks)
-      if (prev.length >= 2) {
+      // Check if already at max (one O/U pick per game)
+      if (prev.length >= games.length) {
         return prev; // Don't add more
       }
 
@@ -1224,8 +1231,8 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
   };
 
   const handleSave = () => {
-    // Require all 4 spread picks, allow 0-2 total picks
-    if (spreadPicks.length === games.length) {
+    // Require all spread picks AND all O/U picks (both games ATS + both games O/U)
+    if (spreadPicks.length === games.length && totalPicks.length === games.length) {
       const allPicks = [...spreadPicks, ...totalPicks];
       onSavePicks(allPicks);
     }
@@ -1249,7 +1256,7 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
   const getButtonText = () => {
     const userName = users.find(u => u.id === selectedUser)?.name || 'Unknown User';
     const totalPickCount = spreadPicks.length + totalPicks.length;
-    const maxPicks = games.length + 2; // 4 spreads + 2 totals
+    const maxPicks = games.length * 2; // All spreads + all O/U picks
 
     if (!hasExistingPicks) {
       return `Save Picks for ${userName} (${totalPickCount}/${maxPicks})`;
@@ -1335,8 +1342,9 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
     return teamLogos[teamName] || '';
   };
 
-  const canAddMoreTotals = totalPicks.length < 2;
+  const canAddMoreTotals = totalPicks.length < games.length;
   const allSpreadsSelected = spreadPicks.length === games.length;
+  const allTotalsSelected = totalPicks.length === games.length;
 
   return (
     <div>
@@ -1352,7 +1360,7 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
               <span className="font-semibold">Spread Picks:</span> Pick all {games.length} games against the spread (required)
             </p>
             <p className="text-sm text-gray-700">
-              <span className="font-semibold">Over/Under Picks:</span> Pick up to 2 totals
+              <span className="font-semibold">Over/Under Picks:</span> Pick all {games.length} totals (required)
             </p>
           </div>
         )}
@@ -1558,9 +1566,9 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
       {/* Save Button */}
       <button
         onClick={handleSave}
-        disabled={!selectedUser || !allSpreadsSelected || (hasExistingPicks && !arePicksModified())}
+        disabled={!selectedUser || !allSpreadsSelected || !allTotalsSelected || (hasExistingPicks && !arePicksModified())}
         className={`w-full py-3 px-4 rounded-md text-lg font-semibold ${
-          !selectedUser || !allSpreadsSelected
+          !selectedUser || !allSpreadsSelected || !allTotalsSelected
             ? 'bg-gray-400 text-white cursor-not-allowed'
             : hasExistingPicks && !arePicksModified()
               ? 'bg-green-600 text-white cursor-not-allowed'
@@ -1571,9 +1579,13 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
       >
         {getButtonText()}
       </button>
-      {!allSpreadsSelected && selectedUser && (
+      {selectedUser && (!allSpreadsSelected || !allTotalsSelected) && (
         <p className="text-sm text-orange-600 mt-2 text-center">
-          Select all {games.length} spread picks to save
+          {!allSpreadsSelected && !allTotalsSelected
+            ? `Select all ${games.length} spread picks and all ${games.length} O/U picks to save`
+            : !allSpreadsSelected
+              ? `Select all ${games.length} spread picks to save`
+              : `Select all ${games.length} O/U picks to save`}
         </p>
       )}
     </div>

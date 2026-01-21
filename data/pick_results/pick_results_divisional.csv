@@ -1,0 +1,43 @@
+user_id,game_id,team,spread,correct
+john,playoff-1,Buffalo Bills,1.5,false
+john,playoff-2,San Francisco 49ers,7,false
+john,playoff-3,New England Patriots,-3,true
+john,playoff-4,Los Angeles Rams,-3.5,false
+john,playoff-2-ou,O/U:UNDER,45.5,false
+john,playoff-3-ou,O/U:UNDER,40.5,false
+connor,playoff-1,Denver Broncos,-1.5,true
+connor,playoff-2,San Francisco 49ers,7,false
+connor,playoff-3,New England Patriots,-3,true
+connor,playoff-4,Los Angeles Rams,-3.5,false
+connor,playoff-2-ou,O/U:UNDER,45.5,false
+connor,playoff-4-ou,O/U:OVER,48.5,false
+cam,playoff-1,Buffalo Bills,1.5,false
+cam,playoff-2,San Francisco 49ers,7,false
+cam,playoff-3,New England Patriots,-3,true
+cam,playoff-4,Los Angeles Rams,-3.5,false
+cam,playoff-1-ou,O/U:OVER,45.5,true
+cam,playoff-4-ou,O/U:UNDER,48.5,true
+nathan,playoff-1,Denver Broncos,-1.5,true
+nathan,playoff-2,Seattle Seahawks,-7,true
+nathan,playoff-3,New England Patriots,-3,true
+nathan,playoff-4,Chicago Bears,3.5,true
+nathan,playoff-1-ou,O/U:UNDER,45.5,false
+nathan,playoff-3-ou,O/U:UNDER,40.5,false
+jacob,playoff-1,Denver Broncos,-1.5,true
+jacob,playoff-2,San Francisco 49ers,7,false
+jacob,playoff-3,New England Patriots,-3,true
+jacob,playoff-4,Los Angeles Rams,-3.5,false
+jacob,playoff-1-ou,O/U:UNDER,45.5,false
+jacob,playoff-4-ou,O/U:UNDER,48.5,true
+max,playoff-1,Buffalo Bills,1.5,false
+max,playoff-2,San Francisco 49ers,7,false
+max,playoff-3,Houston Texans,3,false
+max,playoff-4,Chicago Bears,3.5,true
+max,playoff-2-ou,O/U:UNDER,45.5,false
+max,playoff-4-ou,O/U:OVER,48.5,false
+shane,playoff-1,Denver Broncos,-1.5,true
+shane,playoff-2,San Francisco 49ers,7,false
+shane,playoff-3,Houston Texans,3,false
+shane,playoff-4,Chicago Bears,3.5,true
+shane,playoff-2-ou,O/U:UNDER,45.5,false
+shane,playoff-4-ou,O/U:UNDER,48.5,true
