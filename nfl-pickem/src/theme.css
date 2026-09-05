@@ -209,6 +209,30 @@ body {
   box-sizing: border-box;
 }
 
+/* breakout section: escapes the 760px column to its own comfortable width,
+   centered on the viewport; on small screens it behaves like a normal card */
+.sl-breakout {
+  width: min(1080px, calc(100vw - 28px));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Inside the breakout, defeat d3-table's inline 1022px min-width floor so
+   the table shares whatever width the card actually has (the floor assumes
+   generic content; these cells are 1-2 characters). Wide screens only —
+   on phones the floor stays so the grid scrolls instead of crushing. */
+@media (min-width: 700px) {
+  .sl-breakout table {
+    min-width: 0 !important;
+    width: 100%;
+  }
+  .sl-breakout table td,
+  .sl-breakout table th {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+}
+
 /* compact heatmap: 18 week columns fit without horizontal scroll */
 .heat-compact table td,
 .heat-compact table th {
