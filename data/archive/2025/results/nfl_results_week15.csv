@@ -1,0 +1,17 @@
+game_id,kickoff_et,away,home,away_score,home_score,actual_margin,home_spread,away_spread,home_ats_margin,home_ats_result,away_ats_result,total,actual_total,over_under
+1,2025-12-11 20:15:00-05:00,Atlanta Falcons,Tampa Bay Buccaneers,29,28,-1,-4.5,4.5,-5.5,L,W,44.5,57,OVER
+2,2025-12-14 13:00:00-05:00,Arizona Cardinals,Houston Texans,20,40,20,-9.5,9.5,10.5,W,L,42.5,60,OVER
+3,2025-12-14 13:00:00-05:00,Baltimore Ravens,Cincinnati Bengals,24,0,-24,2.5,-2.5,-21.5,L,W,52.5,24,UNDER
+4,2025-12-14 13:00:00-05:00,Buffalo Bills,New England Patriots,35,31,-4,1.5,-1.5,-2.5,L,W,50.5,66,OVER
+5,2025-12-14 13:00:00-05:00,Cleveland Browns,Chicago Bears,3,31,28,-7.5,7.5,20.5,W,L,38.5,34,UNDER
+6,2025-12-14 13:00:00-05:00,New York Jets,Jacksonville Jaguars,20,48,28,-13.5,13.5,14.5,W,L,41.5,68,OVER
+7,2025-12-14 13:00:00-05:00,Los Angeles Chargers,Kansas City Chiefs,16,13,-3,-5.5,5.5,-8.5,L,W,41.5,29,UNDER
+8,2025-12-14 13:00:00-05:00,Las Vegas Raiders,Philadelphia Eagles,0,31,31,-11.5,11.5,19.5,W,L,38.5,31,UNDER
+9,2025-12-14 13:00:00-05:00,Washington Commanders,New York Giants,29,21,-8,-2.5,2.5,-10.5,L,W,47.5,50,OVER
+10,2025-12-14 16:25:00-05:00,Carolina Panthers,New Orleans Saints,17,20,3,2.5,-2.5,5.5,W,L,40.5,37,UNDER
+11,2025-12-14 16:25:00-05:00,Green Bay Packers,Denver Broncos,26,34,8,2.5,-2.5,10.5,W,L,42.5,60,OVER
+12,2025-12-14 16:25:00-05:00,Detroit Lions,Los Angeles Rams,34,41,7,-5.5,5.5,1.5,W,L,55.5,75,OVER
+13,2025-12-14 16:25:00-05:00,Indianapolis Colts,Seattle Seahawks,16,18,2,-13.5,13.5,-11.5,L,W,42.5,34,UNDER
+14,2025-12-14 16:25:00-05:00,Tennessee Titans,San Francisco 49ers,24,37,13,-12.5,12.5,0.5,W,L,44.5,61,OVER
+15,2025-12-14 20:20:00-05:00,Minnesota Vikings,Dallas Cowboys,34,26,-8,-5.5,5.5,-13.5,L,W,47.5,60,OVER
+16,2025-12-15 20:15:00-05:00,Miami Dolphins,Pittsburgh Steelers,15,28,13,-3.0,3.0,10.0,W,L,42.5,43,OVER

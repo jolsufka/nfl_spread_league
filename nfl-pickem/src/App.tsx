@@ -73,6 +73,47 @@ interface User {
   percentage: number;
 }
 
+// Shared team helpers (single source — was duplicated in three components)
+const TEAM_LOGOS: { [key: string]: string } = {
+  'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
+  'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
+  'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
+  'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
+  'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
+  'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
+  'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
+  'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
+  'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
+  'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
+  'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
+  'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
+  'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
+  'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
+  'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
+  'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
+  'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
+  'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
+  'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
+  'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
+  'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
+  'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
+  'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
+  'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
+  'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
+  'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
+  'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
+  'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
+  'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
+  'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
+  'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
+  'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
+};
+
+const getTeamLogo = (teamName: string) => TEAM_LOGOS[teamName] || '';
+
+// Extract just the mascot (last word) from full team name
+const getMascotName = (teamName: string) => teamName.split(' ').slice(-1)[0];
+
 function App() {
   const [games, setGames] = useState<Game[]>([]);
   const [users] = useState<User[]>([
@@ -147,21 +188,13 @@ function App() {
         },
         error: (error: any) => {
           console.error('Error parsing CSV:', error);
-          // Fallback to sample data if CSV fails to load
-          loadSampleGames();
+          setGames([]);
         }
       });
     } catch (error) {
       console.error('Error loading CSV file:', error);
-      // Fallback to sample data if CSV fails to load
-      loadSampleGames();
+      setGames([]);
     }
-  };
-
-  const loadSampleGames = () => {
-    // Fallback if CSV fails to load - should not happen in production
-    console.error('Failed to load games from CSV');
-    setGames([]);
   };
 
   const loadPlayoffGames = async (week: number) => {
@@ -883,49 +916,6 @@ function PickInterface({ games, currentPicks, onSavePicks, selectedUser, users, 
     return now >= gameTime;
   };
 
-  const getMascotName = (teamName: string) => {
-    // Extract just the mascot (last word) from full team name
-    return teamName.split(' ').slice(-1)[0];
-  };
-
-  const getTeamLogo = (teamName: string) => {
-    // Simple mapping of team names to logo URLs (using ESPN's logos)
-    const teamLogos: { [key: string]: string } = {
-      'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
-      'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
-      'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
-      'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
-      'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
-      'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
-      'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
-      'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
-      'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
-      'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
-      'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
-      'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
-      'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
-      'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
-      'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
-      'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
-      'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
-      'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
-      'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
-      'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
-      'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
-      'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
-      'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
-      'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
-      'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
-      'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
-      'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
-      'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
-      'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
-      'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
-      'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
-      'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
-    };
-    return teamLogos[teamName] || '';
-  };
 
   return (
     <div>
@@ -1320,6 +1310,9 @@ function SuperBowlPickInterface({ game, currentPicks, onSavePicks, selectedUser,
     const loadProps = async () => {
       try {
         const response = await fetch(`${process.env.PUBLIC_URL}/lines/superbowl_props.json`);
+        if (!response.ok) {
+          throw new Error(`superbowl_props.json returned HTTP ${response.status}`);
+        }
         const data = await response.json();
         setAvailableProps(data);
       } catch (error) {
@@ -1533,47 +1526,6 @@ function SuperBowlPickInterface({ game, currentPicks, onSavePicks, selectedUser,
     }) + ` ${timezoneAbbr}`;
   };
 
-  const getMascotName = (teamName: string) => {
-    return teamName.split(' ').slice(-1)[0];
-  };
-
-  const getTeamLogo = (teamName: string) => {
-    const teamLogos: { [key: string]: string } = {
-      'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
-      'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
-      'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
-      'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
-      'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
-      'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
-      'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
-      'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
-      'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
-      'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
-      'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
-      'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
-      'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
-      'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
-      'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
-      'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
-      'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
-      'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
-      'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
-      'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
-      'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
-      'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
-      'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
-      'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
-      'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
-      'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
-      'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
-      'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
-      'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
-      'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
-      'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
-      'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
-    };
-    return teamLogos[teamName] || '';
-  };
 
   if (!game) {
     return <div className="text-gray-500">Loading Super Bowl data...</div>;
@@ -2048,47 +2000,6 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
     return now >= gameTime;
   };
 
-  const getMascotName = (teamName: string) => {
-    return teamName.split(' ').slice(-1)[0];
-  };
-
-  const getTeamLogo = (teamName: string) => {
-    const teamLogos: { [key: string]: string } = {
-      'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
-      'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
-      'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
-      'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
-      'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
-      'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
-      'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
-      'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
-      'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
-      'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
-      'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
-      'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
-      'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
-      'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
-      'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
-      'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
-      'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
-      'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
-      'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
-      'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
-      'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
-      'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
-      'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
-      'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
-      'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
-      'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
-      'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
-      'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
-      'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
-      'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
-      'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
-      'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
-    };
-    return teamLogos[teamName] || '';
-  };
 
   const canAddMoreTotals = totalPicks.length < games.length;
   const allSpreadsSelected = spreadPicks.length === games.length;
@@ -2397,10 +2308,6 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
 
   const getAbbreviation = (teamName: string) => {
     return teamAbbreviations[teamName] || teamName.substring(0, 3).toUpperCase();
-  };
-
-  const getMascotName = (teamName: string) => {
-    return teamName.split(' ').slice(-1)[0];
   };
 
   // Get picks for the selected playoff week
@@ -3022,19 +2929,9 @@ function Leaderboard({ users, picks, currentWeek }: LeaderboardProps) {
   );
 }
 
-interface LeaderboardUser {
-  id: string;
-  name: string;
-  totalCorrect: number;
-  totalPicks: number;
-  percentage: number;
-  last5WeeksPercentage: number;
-  rank: number;
-}
-
 interface CumulativeTrendChartProps {
   picks: Pick[];
-  users: LeaderboardUser[];
+  users: Array<{ id: string; name: string }>;
   currentWeek: number;
 }
 
@@ -4105,9 +4002,13 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
       for (let week = 1; week <= maxWeekToLoad; week++) {
         try {
           const weekResponse = await fetch(`${process.env.PUBLIC_URL}/results/nfl_results_week${week}.csv`);
+          if (!weekResponse.ok) {
+            console.log(`Week ${week} results not available (HTTP ${weekResponse.status})`);
+            continue;
+          }
           const weekText = await weekResponse.text();
-          
-          await new Promise<void>((resolve) => {
+
+          await new Promise<void>((resolve, reject) => {
             Papa.parse(weekText, {
               header: true,
               complete: (results) => {
@@ -4117,7 +4018,8 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
                 allResults.push(...weekData);
                 loadedWeeks++;
                 resolve();
-              }
+              },
+              error: (error: any) => reject(error) // never leave the promise hanging
             });
           });
         } catch (e) {
@@ -4173,7 +4075,7 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
     
     results.forEach(game => {
       // Handle both column formats
-      const homeWon = game.home_covered === 'TRUE' || game.home_ats_result === 'W';
+      const homeWon = game.home_ats_result === 'W';
       const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
       
       if (homeWon) homeWins++;
@@ -4202,19 +4104,19 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
     
     results.forEach(game => {
       // Handle both column formats for spreads
-      const homeSpread = parseFloat(game.spread_home || game.home_spread) || 0;
+      const homeSpread = parseFloat(game.home_spread) || 0;
       const awaySpread = parseFloat(game.spread_away || game.away_spread) || 0;
       
       // Determine which team was favored (negative spread = favorite)
       if (homeSpread < 0) {
         // Home team favored
-        const homeWon = game.home_covered === 'TRUE' || game.home_ats_result === 'W';
+        const homeWon = game.home_ats_result === 'W';
         const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
         if (homeWon) favoriteWins++;
         else if (awayWon) underdogWins++;
       } else if (awaySpread < 0) {
         // Away team favored
-        const homeWon = game.home_covered === 'TRUE' || game.home_ats_result === 'W';
+        const homeWon = game.home_ats_result === 'W';
         const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
         if (awayWon) favoriteWins++;
         else if (homeWon) underdogWins++;
@@ -4252,7 +4154,7 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
 
     results.forEach(game => {
       // Handle both column formats for spreads
-      const homeSpread = parseFloat(game.spread_home || game.home_spread) || 0;
+      const homeSpread = parseFloat(game.home_spread) || 0;
       const awaySpread = parseFloat(game.spread_away || game.away_spread) || 0;
       const spread = Math.abs(homeSpread); // Use absolute value for range categorization
       
@@ -4264,7 +4166,7 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
       
       if (spreadCategory) {
         // Handle both column formats for results
-        const homeWon = game.home_covered === 'TRUE' || game.home_ats_result === 'W';
+        const homeWon = game.home_ats_result === 'W';
         const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
         
         // Determine favorite (negative spread) vs underdog (positive spread)
@@ -4369,14 +4271,14 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
       
       weekData.forEach(game => {
         // Handle both column formats
-        const homeWon = game.home_covered === 'TRUE' || game.home_ats_result === 'W';
+        const homeWon = game.home_ats_result === 'W';
         const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
         
         if (homeWon) homeWins++;
         if (awayWon) awayWins++;
         
         // Handle both column formats for spreads
-        const homeSpread = parseFloat(game.spread_home || game.home_spread) || 0;
+        const homeSpread = parseFloat(game.home_spread) || 0;
         const awaySpread = parseFloat(game.spread_away || game.away_spread) || 0;
         
         if (homeSpread < 0) {
@@ -4551,273 +4453,5 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
   );
 }
 
-interface InsightsProps {
-  picks: Pick[];
-  users: User[];
-  games: Game[];
-}
-
-function Insights({ picks, users, games }: InsightsProps) {
-  // Helper function to get all graded team picks
-  const getAllGradedPicks = () => {
-    return picks.flatMap(userPick => 
-      userPick.picks.filter(teamPick => teamPick.correct !== null && teamPick.correct !== undefined)
-    );
-  };
-
-  // Helper function to find game data for a pick
-  const getGameForPick = (teamPick: TeamPick) => {
-    return games.find(game => 
-      game.id === teamPick.gameId || 
-      game.away === teamPick.team || 
-      game.home === teamPick.team
-    );
-  };
-
-  const gradedPicks = getAllGradedPicks();
-
-  // Team Performance Analytics
-  const getTeamAnalytics = () => {
-    const teamStats: { [key: string]: { picked: number; correct: number } } = {};
-    
-    gradedPicks.forEach(pick => {
-      if (!teamStats[pick.team]) {
-        teamStats[pick.team] = { picked: 0, correct: 0 };
-      }
-      teamStats[pick.team].picked++;
-      if (pick.correct) teamStats[pick.team].correct++;
-    });
-
-    return Object.entries(teamStats)
-      .map(([team, stats]) => ({
-        team,
-        picked: stats.picked,
-        correct: stats.correct,
-        percentage: Math.round((stats.correct / stats.picked) * 100)
-      }))
-      .sort((a, b) => b.picked - a.picked);
-  };
-
-  // Underdog vs Favorite Analytics
-  const getUnderdogFavoriteAnalytics = () => {
-    let favoriteStats = { picked: 0, correct: 0 };
-    let underdogStats = { picked: 0, correct: 0 };
-
-    gradedPicks.forEach(pick => {
-      const spread = pick.spread;
-      if (spread < 0) { // Negative spread = favorite
-        favoriteStats.picked++;
-        if (pick.correct) favoriteStats.correct++;
-      } else { // Positive spread = underdog
-        underdogStats.picked++;
-        if (pick.correct) underdogStats.correct++;
-      }
-    });
-
-    return {
-      favorites: {
-        ...favoriteStats,
-        percentage: favoriteStats.picked > 0 ? Math.round((favoriteStats.correct / favoriteStats.picked) * 100) : 0
-      },
-      underdogs: {
-        ...underdogStats,
-        percentage: underdogStats.picked > 0 ? Math.round((underdogStats.correct / underdogStats.picked) * 100) : 0
-      }
-    };
-  };
-
-  // Home vs Away Analytics
-  const getHomeAwayAnalytics = () => {
-    let homeStats = { picked: 0, correct: 0 };
-    let awayStats = { picked: 0, correct: 0 };
-
-    gradedPicks.forEach(pick => {
-      const game = getGameForPick(pick);
-      if (!game) return;
-
-      if (game.home === pick.team) {
-        homeStats.picked++;
-        if (pick.correct) homeStats.correct++;
-      } else {
-        awayStats.picked++;
-        if (pick.correct) awayStats.correct++;
-      }
-    });
-
-    return {
-      home: {
-        ...homeStats,
-        percentage: homeStats.picked > 0 ? Math.round((homeStats.correct / homeStats.picked) * 100) : 0
-      },
-      away: {
-        ...awayStats,
-        percentage: awayStats.picked > 0 ? Math.round((awayStats.correct / awayStats.picked) * 100) : 0
-      }
-    };
-  };
-
-  // Spread Range Analytics
-  const getSpreadAnalytics = () => {
-    const spreadRanges: { [key: string]: { picked: number; correct: number } } = {};
-    
-    gradedPicks.forEach(pick => {
-      const spread = Math.abs(pick.spread);
-      let range;
-      
-      if (spread <= 3) range = '1-3 points';
-      else if (spread <= 6) range = '3.5-6 points';
-      else if (spread <= 10) range = '6.5-10 points';
-      else range = '10+ points';
-
-      if (!spreadRanges[range]) {
-        spreadRanges[range] = { picked: 0, correct: 0 };
-      }
-      spreadRanges[range].picked++;
-      if (pick.correct) spreadRanges[range].correct++;
-    });
-
-    return Object.entries(spreadRanges)
-      .map(([range, stats]) => ({
-        range,
-        picked: stats.picked,
-        correct: stats.correct,
-        percentage: Math.round((stats.correct / stats.picked) * 100)
-      }))
-      .sort((a, b) => {
-        const order = ['1-3 points', '3.5-6 points', '6.5-10 points', '10+ points'];
-        return order.indexOf(a.range) - order.indexOf(b.range);
-      });
-  };
-
-  const teamAnalytics = getTeamAnalytics();
-  const underdogFavorite = getUnderdogFavoriteAnalytics();
-  const homeAway = getHomeAwayAnalytics();
-  const spreadAnalytics = getSpreadAnalytics();
-
-  const StatCard = ({ title, stats, subtitle }: { title: string; stats: any; subtitle?: string }) => (
-    <div className="bg-gray-50 p-4 rounded-lg">
-      <h4 className="font-semibold text-gray-900 mb-2">{title}</h4>
-      <div className="text-2xl font-bold text-blue-600">
-        {stats.correct}/{stats.picked} ({stats.percentage}%)
-      </div>
-      {subtitle && <div className="text-sm text-gray-600">{subtitle}</div>}
-    </div>
-  );
-
-  return (
-    <div className="space-y-8">
-      {/* Overview Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-blue-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-blue-600">{gradedPicks.length}</div>
-          <div className="text-sm text-blue-700">Total Picks Analyzed</div>
-        </div>
-        <div className="bg-green-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-green-600">{gradedPicks.filter(p => p.correct).length}</div>
-          <div className="text-sm text-green-700">Correct Picks</div>
-        </div>
-        <div className="bg-red-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-red-600">{gradedPicks.filter(p => !p.correct).length}</div>
-          <div className="text-sm text-red-700">Incorrect Picks</div>
-        </div>
-        <div className="bg-purple-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-purple-600">{teamAnalytics.length}</div>
-          <div className="text-sm text-purple-700">Teams Picked</div>
-        </div>
-      </div>
-
-      {/* Favorites vs Underdogs */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">🎯 Favorites vs Underdogs</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <StatCard 
-            title="Favorites (- spread)" 
-            stats={underdogFavorite.favorites}
-            subtitle="Teams favored to win"
-          />
-          <StatCard 
-            title="Underdogs (+ spread)" 
-            stats={underdogFavorite.underdogs}
-            subtitle="Teams getting points"
-          />
-        </div>
-      </div>
-
-      {/* Home vs Away */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">🏠 Home vs Away Teams</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <StatCard 
-            title="Home Teams" 
-            stats={homeAway.home}
-            subtitle="Playing at home"
-          />
-          <StatCard 
-            title="Away Teams" 
-            stats={homeAway.away}
-            subtitle="Playing on the road"
-          />
-        </div>
-      </div>
-
-      {/* Spread Ranges */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Performance by Spread Size</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {spreadAnalytics.map(range => (
-            <StatCard 
-              key={range.range}
-              title={range.range} 
-              stats={range}
-              subtitle="Spread range"
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Most Picked Teams */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">⭐ Most Popular Teams</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Times Picked</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Correct</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Success Rate</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {teamAnalytics.slice(0, 10).map(team => (
-                <tr key={team.team}>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {team.team}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {team.picked}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {team.correct}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                      team.percentage >= 60 ? 'bg-green-100 text-green-800' :
-                      team.percentage >= 50 ? 'bg-yellow-100 text-yellow-800' :
-                      team.percentage > 0 ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-500'
-                    }`}>
-                      {team.percentage}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default App;

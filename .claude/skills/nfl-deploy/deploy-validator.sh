@@ -65,23 +65,25 @@ validate_data_files() {
     echo "📊 Validating Data Files"
     echo "======================"
     
-    # Check for CSV files in public directory
-    if ls "$APP_DIR/public"/nfl_lines_week*.csv 1> /dev/null 2>&1; then
+    # Check for CSV files in public/lines and public/results
+    if ls "$APP_DIR/public/lines"/nfl_lines_week*.csv 1> /dev/null 2>&1; then
         echo "✅ NFL lines CSV files found"
-        for file in "$APP_DIR/public"/nfl_lines_week*.csv; do
+        for file in "$APP_DIR/public/lines"/nfl_lines_week*.csv; do
             echo "  📄 $(basename "$file")"
         done
     else
-        echo "⚠️  No NFL lines CSV files found"
+        echo "❌ No NFL lines CSV files found in $APP_DIR/public/lines/"
+        return 1
     fi
     
-    if ls "$APP_DIR/public"/nfl_results_week*.csv 1> /dev/null 2>&1; then
+    if ls "$APP_DIR/public/results"/nfl_results_week*.csv 1> /dev/null 2>&1; then
         echo "✅ NFL results CSV files found"
-        for file in "$APP_DIR/public"/nfl_results_week*.csv; do
+        for file in "$APP_DIR/public/results"/nfl_results_week*.csv; do
             echo "  📄 $(basename "$file")"
         done
     else
-        echo "⚠️  No NFL results CSV files found"
+        echo "❌ No NFL results CSV files found in $APP_DIR/public/results/"
+        return 1
     fi
     
     return 0
