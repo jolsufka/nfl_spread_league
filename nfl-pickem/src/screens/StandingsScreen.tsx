@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { CfTable, CfChart, ChartFactory } from '../charts';
 import { Pick, User } from '../types';
-import { computeStandings, cumulativeTrend, regularSeason, gradeOf } from '../leagueMath';
+import { computeStandings, cumulativeTrend, regularSeason, gradeOf, PLAYER_COLORS } from '../leagueMath';
 import { getMascotName } from '../teamAssets';
 
 interface StandingsScreenProps {
@@ -187,7 +187,13 @@ export default function StandingsScreen({
   return (
     <div>
       <h2 className="sl-sec">Standings</h2>
-      <div className="sl-card" style={{ padding: '4px 12px' }}>
+      <div
+        className="sl-card"
+        style={{
+          padding: '4px 12px',
+          ...(archive ? { width: 'fit-content', maxWidth: '100%' } : {}),
+        }}
+      >
         <CfTable
           sortable
           columns={[
@@ -206,18 +212,21 @@ export default function StandingsScreen({
           rows={standingsRows}
           options={{
             stickyHeader: true,
-            layout: 'fill',
+            ...(archive ? {} : { layout: 'fill' }),
             barColumns: [{ key: 'winPct' }],
           }}
         />
       </div>
 
       <h2 className="sl-sec">Weekly performance</h2>
-      <div className="sl-card" style={{ padding: '4px 12px' }}>
+      <div
+        className="sl-card heat-compact"
+        style={{ padding: '4px 12px', width: 'fit-content', maxWidth: '100%' }}
+      >
         <CfTable
           columns={heatColumns}
           rows={heatRows}
-          options={{ stickyHeader: true, stickyFirstColumn: true, layout: 'fill' }}
+          options={{ stickyHeader: true, stickyFirstColumn: true }}
         />
       </div>
 
@@ -229,10 +238,14 @@ export default function StandingsScreen({
             series: trendSeries,
             seriesLabels: true,
             endDots: true,
-            legend: { interactive: true },
+            legend: {
+              items: users.map((user) => user.name),
+              colors: PLAYER_COLORS.slice(0, users.length),
+              interactive: true,
+            },
             yMin: 0,
             yMax: 100,
-            annotations: [{ type: 'yLine', value: 50, label: 'Coin flip' }],
+            annotations: [{ type: 'yLine', value: 50 }],
           }}
         />
       </div>
