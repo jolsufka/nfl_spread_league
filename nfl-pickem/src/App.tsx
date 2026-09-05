@@ -458,12 +458,12 @@ function App() {
         style={{
           background: 'var(--paper)',
           borderBottom: '1px solid var(--line)',
-          margin: '0 -14px',
+          margin: '0 -14px 26px',
           padding: '0 14px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 0 12px' }}>
-          <div className="disp" style={{ fontSize: '1.55rem', fontWeight: 700, lineHeight: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '30px 0 16px' }}>
+          <div className="disp" style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>
             Spread League
             <small
               style={{
@@ -515,7 +515,7 @@ function App() {
             </span>
           ) : null}
         </div>
-        <nav className="sl-topnav" style={{ display: 'flex', gap: 6, paddingBottom: 12 }}>
+        <nav className="sl-topnav" style={{ display: 'flex', gap: 6, paddingBottom: 16 }}>
           {navButtons('top')}
         </nav>
       </header>
