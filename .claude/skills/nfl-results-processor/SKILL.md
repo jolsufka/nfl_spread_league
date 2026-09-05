@@ -6,122 +6,72 @@ allowed-tools: ["Bash", "Read", "Write", "Edit", "LS"]
 
 # NFL Results Processing Automation
 
-This skill automates the complete results processing workflow after NFL games are completed.
+This skill grades a completed NFL week: final scores, ATS outcomes, pick grades, database updates, and results files.
+
+## Automation Does This For You
+
+`.github/workflows/weekly-update.yml` (Tuesdays 10am ET) grades the week that just ended before fetching new lines and deploying. This skill is for manual runs, regrades, or workflow failures. Trigger by hand with `gh workflow run weekly-update.yml` (accepts an optional `week` input).
 
 ## What This Skill Does
 
-1. **Fetches Game Results**: Uses The Odds API to get actual game scores and ATS outcomes
-2. **Updates Database**: Marks picks as correct/incorrect in Supabase based on actual results
-3. **Generates Reports**: Creates CSV files with game results and pick accuracy
-4. **Updates React App**: Copies results files to React app for display
-5. **Validates Data**: Ensures all games are processed and results are accurate
+1. **Fetches Final Scores**: from ESPN's scoreboard API, addressable by season + week — running late never loses games (the old Odds API 3-day window limitation is gone)
+2. **Computes ATS Results**: spread and over/under outcomes per game (use the spread-analysis skill for the rules)
+3. **Grades Picks**: writes W/L/P to the `result` column in Supabase; the `correct` boolean is kept for compatibility
+4. **Writes Files**: results CSVs to `data/results/` AND `nfl-pickem/public/results/` automatically — no cp step
+
+There is no currentWeek bump afterward: the app derives the week from the date via `nfl-pickem/public/season.json`.
 
 ## Prerequisites
 
-- `.api_key` file must exist in project root
-- Week 1 start date: `2025-09-02 08:00` (Eastern Time)
-- Current season: 2025 NFL season
-- Supabase database with picks data for the week
-- All games for the week must be completed
+- **`SUPABASE_SERVICE_KEY` env var — required for grading.** RLS blocks the anon key from writing grades. Get the service_role key from the Supabase dashboard (Project Settings > API); it must never ship to browsers.
+- Lines file for the week in `data/lines/` (no odds API key needed — ESPN scores are free)
+- Picks in Supabase for the week
 
-## Usage Examples
+## Usage
 
-User says any of:
-- "Process Week X results"
-- "Update picks for Week X"
-- "Grade Week X picks"
-- "Week X games are done, process results"
-
-## Workflow Steps
-
-### 1. Validate Inputs
-- Check that week number is valid (1-18)
-- Verify API key file exists
-- Confirm picks exist for the week in Supabase
-- Check that games for the week are completed
-
-### 2. Fetch Game Results
 ```bash
-python3 scripts/results_script.py --api-key $(cat .api_key) --week [WEEK] --week1-start-et "2025-09-02 08:00"
+SUPABASE_SERVICE_KEY=... python3 scripts/results_script.py
 ```
+- Default: grades the week that just ended (correct for a Tuesday run)
+- `--week N`: grade a specific week (late regrades are fine — ESPN is week-addressable)
+- `--season YYYY`: override the season from season.json
+- `--allow-partial`: grade even if some games aren't final (in-week refresh)
+- `--skip-supabase`: compute CSVs only, no database writes (no service key needed)
 
-### 3. Verify Results Files Generated
-Check that these files were created:
-- `data/results/nfl_results_week[WEEK].csv` - Game results with ATS outcomes
-- `data/pick_results/pick_results_week[WEEK].csv` - Individual pick accuracy
+User says any of: "Process Week X results", "Grade this week's picks", "Week X games are done, process results".
 
-### 4. Copy Results to React App
-```bash
-cp data/results/nfl_results_week[WEEK].csv nfl-pickem/public/
-```
+## Validation Gates
 
-### 5. Validate Database Updates
-- Check that Supabase picks table has `correct` field updated
-- Verify pick accuracy calculations are correct
-- Ensure all games for the week are processed
+The script refuses to produce silently-wrong output. Exit codes:
 
-### 6. Generate Summary Report
-Provide summary of:
-- Total games processed
-- Each user's correct picks for the week
-- Updated season standings
-- Any games that couldn't be processed
+| Exit | Meaning |
+|------|---------|
+| 0 | Success |
+| 2 | Bad inputs: missing lines file, no ESPN events, lines rows with no ESPN match, or inconsistent ATS results |
+| 3 | Games not final yet — rerun later, or use `--allow-partial` |
+| 4 | Picks that could not be graded |
+| 5 | Supabase update failed |
 
-## Error Handling
+Any nonzero exit means DO NOT trust the outputs.
 
-- **API Key Missing**: Guide user to create `.api_key` file
-- **API Request Fails**: Check API key validity and network connection
-- **No Picks Found**: Verify users have submitted picks for the week
-- **Incomplete Games**: List games that haven't finished yet
-- **Supabase Connection Issues**: Check database connectivity and permissions
-- **File Creation Errors**: Verify write permissions and disk space
+## Output Files
 
-## Data Validation
+- `data/results/nfl_results_weekN.csv` and `nfl-pickem/public/results/nfl_results_weekN.csv` (same bytes)
+- `data/picks/picks_weekN.csv`: picks exported from Supabase
+- `data/pick_results/pick_results_weekN.csv`: per-pick grades
 
-The skill performs these validation checks:
-- All games for the week have final scores
-- Pick accuracy calculations match actual game outcomes
-- No duplicate entries in results files
-- All users' picks are processed
-- Database updates completed successfully
+## Push Handling
 
-## Success Criteria
-
-- Game results fetched and processed successfully
-- Supabase database updated with pick accuracy
-- Results CSV files generated in `data/results/` and `data/pick_results/`
-- Results files copied to React app
-- Summary report shows all picks processed correctly
-
-## Output Files Generated
-
-- `data/results/nfl_results_week[WEEK].csv`: Game outcomes with ATS results
-- `data/pick_results/pick_results_week[WEEK].csv`: User pick accuracy
-- `nfl-pickem/public/nfl_results_week[WEEK].csv`: Results for React app
-
-## Important Notes
-
-- ALWAYS use 2025 dates (not 2024!)
-- Week 1 started: 2025-09-02 08:00 ET
-- This is the 2025 NFL season
-- Process results only after ALL games for the week are completed
-- Results typically processed Sunday night or Monday morning
-- Validate that previous week's setup is complete before processing
-- Users expect results within 24 hours of games ending
+- Pushes are stored explicitly as `'P'` in the `result` column; a NULL `result` means ungraded, not push
+- Pushes count as picks made (denominator) but not as wins (numerator): 2-0 with 1 push = 2/3 = 66.7%
 
 ## Common Scenarios
 
-### Monday Night Football
-If Monday Night Football hasn't finished:
-- Process all completed games
-- Note which game(s) are pending
-- Re-run after MNF completes
+### Monday Night Football not finished
+The default run exits 3 and grades nothing. Either wait, or use `--allow-partial` to grade completed games and rerun after MNF.
 
-### Tie Games
-Handle rare tie scenarios according to sportsbook rules (typically pushes)
+### Postponed games
+`--allow-partial` grades the available games; rerun once the postponed game completes.
 
-### Postponed Games
-If games are postponed:
-- Process available games
-- Track postponed games separately
-- Update when postponed games are completed
+### Tie games / exact spread margins
+Pushes — graded automatically as `'P'`.

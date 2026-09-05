@@ -1,0 +1,15 @@
+game_id,kickoff_et,away,home,away_score,home_score,actual_margin,home_spread,away_spread,home_ats_margin,home_ats_result,away_ats_result,total,actual_total,over_under
+1,2025-10-02 20:16:00-04:00,San Francisco 49ers,Los Angeles Rams,26,23,-3,-8.5,8.5,-11.5,L,W,44.5,49,OVER
+2,2025-10-05 09:31:00-04:00,Minnesota Vikings,Cleveland Browns,21,17,-4,4.5,-4.5,0.5,W,L,36.5,38,OVER
+3,2025-10-05 13:01:00-04:00,Houston Texans,Baltimore Ravens,44,10,-34,1.5,-1.5,-32.5,L,W,40.5,54,OVER
+4,2025-10-05 13:01:00-04:00,Miami Dolphins,Carolina Panthers,24,27,3,1.5,-1.5,4.5,W,L,45.5,51,OVER
+5,2025-10-05 13:01:00-04:00,Dallas Cowboys,New York Jets,37,22,-15,2.5,-2.5,-12.5,L,W,47.5,59,OVER
+6,2025-10-05 13:01:00-04:00,Denver Broncos,Philadelphia Eagles,21,17,-4,-3.5,3.5,-7.5,L,W,43.5,38,UNDER
+7,2025-10-05 13:01:00-04:00,Las Vegas Raiders,Indianapolis Colts,6,40,34,-6.5,6.5,27.5,W,L,47.5,46,UNDER
+8,2025-10-05 13:01:00-04:00,New York Giants,New Orleans Saints,14,26,12,-1.5,1.5,10.5,W,L,42.5,40,UNDER
+9,2025-10-05 16:06:00-04:00,Tennessee Titans,Arizona Cardinals,22,21,-1,-7.5,7.5,-8.5,L,W,42.5,43,OVER
+10,2025-10-05 16:06:00-04:00,Tampa Bay Buccaneers,Seattle Seahawks,38,35,-3,-3.5,3.5,-6.5,L,W,44.5,73,OVER
+11,2025-10-05 16:26:00-04:00,Detroit Lions,Cincinnati Bengals,37,24,-13,10.5,-10.5,-2.5,L,W,49.5,61,OVER
+12,2025-10-05 16:26:00-04:00,Washington Commanders,Los Angeles Chargers,27,10,-17,-2.5,2.5,-19.5,L,W,47.5,37,UNDER
+13,2025-10-05 20:21:00-04:00,New England Patriots,Buffalo Bills,23,20,-3,-8.5,8.5,-11.5,L,W,49.5,43,UNDER
+14,2025-10-06 20:16:00-04:00,Kansas City Chiefs,Jacksonville Jaguars,28,31,3,3.5,-3.5,6.5,W,L,46.5,59,OVER

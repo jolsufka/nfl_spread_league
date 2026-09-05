@@ -60,7 +60,7 @@ This skill provides comprehensive guidance on evaluating NFL point spreads to en
 ### Step 4: Determine Result
 - Cover = Correct pick ✅
 - No cover = Incorrect pick ❌
-- Push = Counts as pick made, no win awarded (stored as NULL in database)
+- Push = Counts as pick made, no win awarded (stored as `'P'` in the `result` column)
 
 ## Common Mistakes to Avoid
 
@@ -95,7 +95,7 @@ Before marking any pick as correct/incorrect:
 ### Important Push Logic
 - **Pushes COUNT as picks made**: User selected 3 teams, pushes count toward that total
 - **Win percentage calculation**: Wins ÷ Total Picks (including pushes)
-- **Database storage**: Store pushes as `NULL` in the `correct` field
+- **Database storage**: pushes stored as `'P'` in the `result` column (the legacy `correct` boolean stays `NULL` for compatibility); a `NULL` `result` means ungraded, not push
 - **Display format**: Show as "2-1-1" (wins-losses-pushes) with win percentage
 
 ### Example Scenarios
@@ -110,7 +110,7 @@ When processing results for the NFL spread league:
 1. **Load spread data** from CSV files in `data/lines/`
 2. **Match team names** exactly as they appear in pick data
 3. **Apply spread logic** using this skill's rules
-4. **Update database** with correct values: TRUE (win), FALSE (loss), NULL (push)
+4. **Update database** `result` column: `'W'` (win), `'L'` (loss), `'P'` (push) — `NULL` means not graded yet; the `correct` boolean is kept in sync for compatibility
 5. **Calculate win percentages** as wins ÷ total picks (including pushes)
 6. **Display records** showing wins-losses-pushes format with win percentage
 7. **Verify calculations** before finalizing

@@ -11,8 +11,8 @@ A web app where 6 friends pick 3 NFL teams against the spread each week, competi
 
 1. **Monday Morning**: Run Python script to get new week's games
    ```bash
-   python script.py --api-key YOUR_KEY --week 2 --csv nfl_lines_week.csv
-   git add nfl_lines_week.csv
+   python3 scripts/script.py
+   git add data/lines nfl-pickem/public/lines
    git commit -m "Week 2 games available"
    git push
    ```
