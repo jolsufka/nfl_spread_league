@@ -144,6 +144,8 @@ def main():
     ap.add_argument("--csv", help="Override output path (skips the public/ copy)")
     ap.add_argument("--force", action="store_true",
                     help="Overwrite an existing lines file (changes spreads users picked against!)")
+    ap.add_argument("--skip-if-exists", action="store_true",
+                    help="Exit 0 quietly if the lines file already exists (for scheduled runs)")
     args = ap.parse_args()
 
     api_key = args.api_key or read_api_key("ODDS_API_KEY", "odds_api_key")
@@ -168,6 +170,9 @@ def main():
 
     existing = [str(p) for p in outputs if os.path.exists(p)]
     if existing and not args.force:
+        if args.skip_if_exists:
+            print(f"Lines already fetched ({existing[0]}); nothing to do.")
+            return
         sys.exit(
             "Refusing to overwrite existing lines (picks may reference them): "
             + ", ".join(existing) + "\nUse --force to refetch."

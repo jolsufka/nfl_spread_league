@@ -41,12 +41,18 @@ def week_window_et(week: int, config: dict = None):
     return start, start + dt.timedelta(days=7, seconds=-1)
 
 
-def current_week(config: dict = None, now: dt.datetime = None) -> int:
-    """Same computation as seasonConfig.ts: clamped to [1, regularSeasonWeeks]."""
+def raw_week(config: dict = None, now: dt.datetime = None) -> int:
+    """Unclamped week number: 0 before the season, 19+ after week 18 ends."""
     config = config or load_season_config()
     now = now or dt.datetime.now(dt.timezone.utc)
     delta = now - week1_start_et(config)
-    week = delta.days // 7 + 1
+    return delta.days // 7 + 1
+
+
+def current_week(config: dict = None, now: dt.datetime = None) -> int:
+    """Same computation as seasonConfig.ts: clamped to [1, regularSeasonWeeks]."""
+    config = config or load_season_config()
+    week = raw_week(config, now)
     return min(max(week, 1), config.get("regularSeasonWeeks", 18))
 
 

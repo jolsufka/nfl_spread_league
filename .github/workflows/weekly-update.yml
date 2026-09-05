@@ -1,0 +1,79 @@
+name: Weekly update
+
+# Tuesday morning ET: grade last week's picks, fetch this week's lines,
+# commit the data, and deploy the app. The scripts decide what needs doing
+# from season.json, so this needs no per-week configuration.
+on:
+  schedule:
+    - cron: '0 14 * * 2'   # Tuesdays 14:00 UTC = 10am EDT / 9am EST
+  workflow_dispatch:
+    inputs:
+      week:
+        description: 'Grade a specific week (default: the week that just ended)'
+        required: false
+
+concurrency:
+  group: weekly-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Grade last week
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          if [ -n "${{ inputs.week }}" ]; then
+            python3 scripts/results_script.py --week "${{ inputs.week }}"
+          else
+            python3 scripts/results_script.py
+          fi
+
+      - name: Fetch this week's lines
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python3 scripts/script.py --skip-if-exists
+
+      - name: Commit data updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/ nfl-pickem/public/
+          if git diff --cached --quiet; then
+            echo "No data changes to commit"
+          else
+            git commit -m "Weekly update: results + lines ($(date -u +%Y-%m-%d))"
+            git push
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: nfl-pickem/package-lock.json
+
+      - name: Build app
+        working-directory: nfl-pickem
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: nfl-pickem/build

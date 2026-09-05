@@ -17,7 +17,7 @@ import requests
 
 from season import (
     load_season_config,
-    current_week,
+    raw_week,
     lines_csv_paths,
     results_csv_paths,
     PICKS_DIR,
@@ -204,7 +204,16 @@ def main():
     args = ap.parse_args()
 
     # Default: grade the week BEFORE the current one (Tuesday runs grade last week)
-    week = args.week if args.week is not None else max(1, current_week(config) - 1)
+    if args.week is not None:
+        week = args.week
+    else:
+        week = raw_week(config) - 1
+        if week < 1:
+            print("Week 1 hasn't finished yet - nothing to grade.")
+            return
+        if week > config.get("regularSeasonWeeks", 18):
+            print("Regular season is over - playoff rounds are graded manually for now.")
+            return
     print(f"Grading season {args.season}, week {week}")
 
     lines_df = load_lines(week)
