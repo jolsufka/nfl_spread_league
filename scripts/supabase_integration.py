@@ -1,195 +1,182 @@
 # supabase_integration.py
 import os
-import sys
 import pandas as pd
 from supabase import create_client, Client
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 
-# Supabase configuration
-SUPABASE_URL = "https://ruzznovsrwkxupdwafyy.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1enpub3ZzcndreHVwZHdhZnl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5NjI1ODksImV4cCI6MjA3MjUzODU4OX0.FpOWJQcQ99JRwUUbpCOXlw0VSZ-lAoku2ipBb77mcRc"
+# Supabase configuration.
+# The URL and anon key are public (they ship in the browser bundle); the
+# service key is NOT and must come from the environment. Grading requires it:
+# RLS blocks the anon key from touching graded rows or writing results.
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://ruzznovsrwkxupdwafyy.supabase.co")
+SUPABASE_ANON_KEY = os.environ.get(
+    "SUPABASE_ANON_KEY",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1enpub3ZzcndreHVwZHdhZnl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5NjI1ODksImV4cCI6MjA3MjUzODU4OX0.FpOWJQcQ99JRwUUbpCOXlw0VSZ-lAoku2ipBb77mcRc",
+)
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
-def get_supabase_client() -> Client:
-    """Initialize and return Supabase client."""
+DEFAULT_SEASON = 2026
+
+
+def get_supabase_client(write: bool = False) -> Client:
+    """Return a Supabase client. write=True requires SUPABASE_SERVICE_KEY."""
+    if write:
+        if not SUPABASE_SERVICE_KEY:
+            raise RuntimeError(
+                "SUPABASE_SERVICE_KEY is not set. Grading writes are blocked by RLS "
+                "for the anon key. Get the service_role key from the Supabase dashboard "
+                "(Project Settings > API) and export SUPABASE_SERVICE_KEY."
+            )
+        return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
     return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-def extract_picks_for_week(week: int) -> pd.DataFrame:
-    """Extract all picks from Supabase for a specific week."""
+
+def extract_picks_for_week(week: int, season: int = DEFAULT_SEASON) -> pd.DataFrame:
+    """Extract all picks for a week of the given season. Raises on query failure."""
     supabase = get_supabase_client()
-    
-    try:
-        # Fetch picks for the specified week
-        response = supabase.table('picks').select('*').eq('week', week).execute()
-        
-        if not response.data:
-            print(f"No picks found for week {week}")
-            return pd.DataFrame()
-        
-        # Convert to DataFrame
-        picks_df = pd.DataFrame(response.data)
-        
-        # Ensure we have the expected columns
-        expected_columns = ['user_id', 'week', 'game_id', 'team', 'spread', 'correct']
-        for col in expected_columns:
-            if col not in picks_df.columns:
-                picks_df[col] = None
-        
-        return picks_df
-        
-    except Exception as e:
-        print(f"Error extracting picks from Supabase: {e}")
+    response = (
+        supabase.table("picks")
+        .select("*")
+        .eq("season", season)
+        .eq("week", week)
+        .execute()
+    )
+    if not response.data:
+        print(f"No picks found for season {season}, week {week}")
         return pd.DataFrame()
 
-def save_picks_to_csv(picks_df: pd.DataFrame, week: int, output_file: Optional[str] = None) -> str:
-    """Save picks DataFrame to CSV in the expected format."""
+    picks_df = pd.DataFrame(response.data)
+    for col in ["user_id", "week", "season", "game_id", "team", "spread", "correct", "result"]:
+        if col not in picks_df.columns:
+            picks_df[col] = None
+    return picks_df
+
+
+def save_picks_to_csv(picks_df: pd.DataFrame, week: int, output_file: Optional[str] = None,
+                      season: int = DEFAULT_SEASON) -> str:
+    """Save picks to CSV with the full schema (no placeholder columns)."""
     if output_file is None:
         output_file = f"data/picks/picks_week{week}.csv"
-    
+
     if picks_df.empty:
         print(f"No picks to save for week {week}")
         return output_file
-    
-    # Convert to the format expected by results_script.py
-    # Expected format: user,team,game_date
-    # We'll need to map game_id to game_date from the odds file
-    
-    csv_picks = picks_df[['user_id', 'team']].copy()
-    csv_picks.columns = ['user', 'team']
-    
-    # Add a placeholder game_date - this will be matched by team name in results_script.py
-    csv_picks['game_date'] = f"2024-09-{week:02d}"  # Placeholder date
-    
-    csv_picks.to_csv(output_file, index=False)
-    print(f"Saved {len(csv_picks)} picks to {output_file}")
-    
+
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    columns = ["user_id", "season", "week", "game_id", "team", "spread", "correct", "result"]
+    picks_df[columns].to_csv(output_file, index=False)
+    print(f"Saved {len(picks_df)} picks to {output_file}")
     return output_file
 
-def update_pick_results(week: int, pick_results_df: pd.DataFrame) -> bool:
-    """Update Supabase with pick results (Win/Loss/Push)."""
-    supabase = get_supabase_client()
-    
-    try:
-        for _, result in pick_results_df.iterrows():
-            # Convert result to boolean or None
-            correct_value = None
-            if result['result'] == 'W':
-                correct_value = True
-            elif result['result'] == 'L':
-                correct_value = False
-            # Leave as None for Push
-            
-            # Update the pick in Supabase
-            response = supabase.table('picks').update({
-                'correct': correct_value
-            }).eq('user_id', result['user']).eq('week', week).eq('team', result['team']).execute()
-            
-            if not response.data:
-                print(f"Warning: Could not update pick for {result['user']} - {result['team']}")
-        
-        print(f"Successfully updated pick results in Supabase for week {week}")
-        return True
-        
-    except Exception as e:
-        print(f"Error updating pick results in Supabase: {e}")
-        return False
 
-def calculate_user_stats(user_id: str) -> Dict:
-    """Calculate overall stats for a user across all weeks."""
-    supabase = get_supabase_client()
-    
-    try:
-        # Get all picks for this user
-        response = supabase.table('picks').select('*').eq('user_id', user_id).execute()
-        
+def update_pick_results(week: int, pick_results_df: pd.DataFrame,
+                        season: int = DEFAULT_SEASON) -> bool:
+    """Write graded results (W/L/P) to Supabase using the service key.
+
+    pick_results_df needs columns: user, team, result — and ideally game_id,
+    which makes the match exact. Returns False if any pick failed to update.
+    """
+    supabase = get_supabase_client(write=True)
+    failures = 0
+
+    for _, row in pick_results_df.iterrows():
+        result = row["result"]
+        if result not in ("W", "L", "P"):
+            print(f"Warning: unknown result '{result}' for {row['user']} - {row['team']}")
+            failures += 1
+            continue
+
+        correct_value = {"W": True, "L": False, "P": None}[result]
+        query = (
+            supabase.table("picks")
+            .update({"correct": correct_value, "result": result})
+            .eq("season", season)
+            .eq("user_id", row["user"])
+            .eq("week", week)
+        )
+        if "game_id" in row.index and pd.notna(row.get("game_id")):
+            query = query.eq("game_id", row["game_id"])
+        else:
+            query = query.eq("team", row["team"])
+
+        response = query.execute()
         if not response.data:
-            return {"total_picks": 0, "correct_picks": 0, "percentage": 0}
-        
-        picks = response.data
-        total_picks = len(picks)
-        correct_picks = sum(1 for pick in picks if pick.get('correct') is True)
-        percentage = round((correct_picks / total_picks * 100), 1) if total_picks > 0 else 0
-        
-        return {
-            "total_picks": total_picks,
-            "correct_picks": correct_picks,
-            "percentage": percentage
-        }
-        
-    except Exception as e:
-        print(f"Error calculating stats for {user_id}: {e}")
+            print(f"FAILED to update: {row['user']} - {row['team']} (no matching row)")
+            failures += 1
+
+    if failures:
+        print(f"{failures} pick(s) failed to update for season {season}, week {week}")
+        return False
+    print(f"Successfully updated pick results in Supabase for season {season}, week {week}")
+    return True
+
+
+def calculate_user_stats(user_id: str, season: int = DEFAULT_SEASON) -> Dict:
+    """Overall stats for a user. Pushes count in the denominator, not the numerator."""
+    supabase = get_supabase_client()
+    response = (
+        supabase.table("picks").select("*").eq("season", season).eq("user_id", user_id).execute()
+    )
+    if not response.data:
         return {"total_picks": 0, "correct_picks": 0, "percentage": 0}
 
-def get_leaderboard() -> pd.DataFrame:
-    """Get current leaderboard with all user stats."""
+    picks = response.data
+    total_picks = len(picks)
+    correct_picks = sum(1 for pick in picks if pick.get("correct") is True)
+    percentage = round((correct_picks / total_picks * 100), 1) if total_picks else 0
+    return {"total_picks": total_picks, "correct_picks": correct_picks, "percentage": percentage}
+
+
+def get_leaderboard(season: int = DEFAULT_SEASON) -> pd.DataFrame:
+    """Leaderboard for a season. Pushes count in the denominator, not the numerator."""
     supabase = get_supabase_client()
-    
-    try:
-        # Get all picks to calculate stats
-        response = supabase.table('picks').select('*').execute()
-        
-        if not response.data:
-            return pd.DataFrame(columns=['user', 'total_picks', 'correct_picks', 'percentage'])
-        
-        picks_df = pd.DataFrame(response.data)
-        
-        # Calculate stats by user
-        user_stats = []
-        for user_id in picks_df['user_id'].unique():
-            user_picks = picks_df[picks_df['user_id'] == user_id]
-            total_picks = len(user_picks)
-            correct_picks = len(user_picks[user_picks['correct'] == True])
-            percentage = round((correct_picks / total_picks * 100), 1) if total_picks > 0 else 0
-            
-            user_stats.append({
-                'user': user_id,
-                'total_picks': total_picks,
-                'correct_picks': correct_picks,
-                'percentage': percentage
-            })
-        
-        leaderboard_df = pd.DataFrame(user_stats)
-        # Sort by percentage, then by correct picks
-        leaderboard_df = leaderboard_df.sort_values(['percentage', 'correct_picks'], ascending=[False, False])
-        
-        return leaderboard_df
-        
-    except Exception as e:
-        print(f"Error generating leaderboard: {e}")
-        return pd.DataFrame(columns=['user', 'total_picks', 'correct_picks', 'percentage'])
+    response = supabase.table("picks").select("*").eq("season", season).execute()
+    if not response.data:
+        return pd.DataFrame(columns=["user", "total_picks", "correct_picks", "percentage"])
+
+    picks_df = pd.DataFrame(response.data)
+    user_stats = []
+    for user_id in picks_df["user_id"].unique():
+        user_picks = picks_df[picks_df["user_id"] == user_id]
+        total_picks = len(user_picks)
+        correct_picks = len(user_picks[user_picks["correct"] == True])  # noqa: E712
+        percentage = round((correct_picks / total_picks * 100), 1) if total_picks else 0
+        user_stats.append({
+            "user": user_id,
+            "total_picks": total_picks,
+            "correct_picks": correct_picks,
+            "percentage": percentage,
+        })
+
+    leaderboard_df = pd.DataFrame(user_stats)
+    return leaderboard_df.sort_values(["percentage", "correct_picks"], ascending=[False, False])
+
 
 def main():
-    """Command line interface for Supabase operations."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Supabase integration for NFL pick-em league")
     parser.add_argument("--week", type=int, required=True, help="Week number")
-    parser.add_argument("--action", choices=['extract', 'leaderboard'], default='extract',
-                       help="Action to perform")
+    parser.add_argument("--season", type=int, default=DEFAULT_SEASON, help="Season year")
+    parser.add_argument("--action", choices=["extract", "leaderboard"], default="extract")
     parser.add_argument("--output", help="Output CSV file (default: picks_week{N}.csv)")
-    
     args = parser.parse_args()
-    
-    if args.action == 'extract':
-        # Extract picks for the week
-        picks_df = extract_picks_for_week(args.week)
+
+    if args.action == "extract":
+        picks_df = extract_picks_for_week(args.week, args.season)
         if not picks_df.empty:
-            output_file = save_picks_to_csv(picks_df, args.week, args.output)
+            output_file = save_picks_to_csv(picks_df, args.week, args.output, args.season)
             print(f"Picks extracted and saved to {output_file}")
-            
-            # Display summary
             print(f"\nPick Summary for Week {args.week}:")
-            print(picks_df.groupby('user_id').size().to_string())
-        else:
-            print(f"No picks found for week {args.week}")
-    
-    elif args.action == 'leaderboard':
-        # Show current leaderboard
-        leaderboard_df = get_leaderboard()
+            print(picks_df.groupby("user_id").size().to_string())
+    elif args.action == "leaderboard":
+        leaderboard_df = get_leaderboard(args.season)
         if not leaderboard_df.empty:
             print("Current Leaderboard:")
             print(leaderboard_df.to_string(index=False))
         else:
             print("No picks data found")
+
 
 if __name__ == "__main__":
     main()
