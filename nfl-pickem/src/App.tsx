@@ -8,44 +8,31 @@ import {
   computeCurrentWeek,
   getPlayoffRound,
   playoffWeekName,
-  isPlayoffWeek,
   calcRecord,
 } from './seasonConfig';
+import { Game, WeatherData, TeamPick, Pick, User } from './types';
+import { getTeamLogo, getMascotName } from './teamAssets';
+import { startChartThemeSync } from './charts';
+import ThisWeekScreen from './screens/ThisWeekScreen';
+import PicksScreen from './screens/PicksScreen';
+import StandingsScreen from './screens/StandingsScreen';
+import StatsScreen from './screens/StatsScreen';
+import './theme.css';
 
-interface Game {
-  id: string;
-  kickoff_et: string;
-  away: string;
-  home: string;
-  spread_away: number;
-  spread_home: number;
-  total: number;
-  spreads_book: string;
-  // First half lines (Super Bowl only)
-  spread_h1_away?: number;
-  spread_h1_home?: number;
-  total_h1?: number;
-}
+type ViewKey = 'week' | 'picks' | 'standings' | 'stats';
 
-interface WeatherData {
-  team: string;
-  stadium: string;
-  city: string;
-  state: string;
-  weather_summary: string;
-  forecast_time: string;
-}
+const NAV_ITEMS: Array<{ key: ViewKey; label: string; icon: string }> = [
+  { key: 'week', label: 'This Week', icon: '🏈' },
+  { key: 'picks', label: 'Picks', icon: '☑️' },
+  { key: 'standings', label: 'Standings', icon: '🏆' },
+  { key: 'stats', label: 'Stats', icon: '📊' },
+];
 
-interface TeamPick {
-  gameId: string;
-  team: string; // team name selected, or "OVER"/"UNDER" for totals, or prop description
-  spread: number; // spread for the selected team, or total line for O/U, or prop line
-  correct?: boolean; // whether this pick was correct (optional, for future use)
-  result?: 'W' | 'L' | 'P' | null; // graded result; 'P' = push, NULL = not graded yet
-  pickType?: 'spread' | 'total' | 'spread_h1' | 'total_h1' | 'prop1' | 'prop2'; // type of pick (defaults to 'spread' for backwards compatibility)
-  propId?: string; // ID of the prop bet (for prop picks only)
-  propSelection?: 'OVER' | 'UNDER' | 'YES'; // selection for prop bet
-}
+const initialTheme = (): 'light' | 'dark' => {
+  const saved = localStorage.getItem('nfl-pickem-theme');
+  if (saved === 'light' || saved === 'dark') return saved;
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+};
 
 interface PropBet {
   id: string;
@@ -59,60 +46,6 @@ interface PropBet {
   display: string;
 }
 
-interface Pick {
-  userId: string;
-  week: number;
-  picks: TeamPick[];
-  correct: number;
-}
-
-interface User {
-  id: string;
-  name: string;
-  total: number;
-  percentage: number;
-}
-
-// Shared team helpers (single source — was duplicated in three components)
-const TEAM_LOGOS: { [key: string]: string } = {
-  'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
-  'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
-  'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
-  'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
-  'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
-  'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
-  'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
-  'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
-  'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
-  'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
-  'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
-  'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
-  'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
-  'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
-  'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
-  'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
-  'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
-  'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
-  'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
-  'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
-  'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
-  'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
-  'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
-  'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
-  'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
-  'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
-  'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
-  'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
-  'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
-  'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
-  'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
-  'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
-};
-
-const getTeamLogo = (teamName: string) => TEAM_LOGOS[teamName] || '';
-
-// Extract just the mascot (last word) from full team name
-const getMascotName = (teamName: string) => teamName.split(' ').slice(-1)[0];
 
 function App() {
   const [games, setGames] = useState<Game[]>([]);
@@ -127,26 +60,32 @@ function App() {
   ]);
   const [picks, setPicks] = useState<Pick[]>([]);
   const [currentWeek, setCurrentWeek] = useState(() => computeCurrentWeek());
-  const [selectedUser, setSelectedUser] = useState<string>(() => {
-    // Check localStorage for previously selected user
-    const savedUser = localStorage.getItem('nfl-pickem-user');
-    return savedUser || ''; // Empty string forces user selection
-  });
-  const [activeTab, setActiveTab] = useState<'picks' | 'leaderboard' | 'chart' | 'history' | 'insights' | 'nfl-trends'>('leaderboard');
-  const [playoffTab, setPlayoffTab] = useState<'picks' | 'chart' | 'leaderboard'>('picks');
+  const [selectedUser, setSelectedUser] = useState<string>(
+    () => localStorage.getItem('nfl-pickem-user') || ''
+  );
+  const [view, setView] = useState<ViewKey>('week');
+  const [viewSeason, setViewSeason] = useState<number>(seasonConfig.season);
+  const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme);
   const [mode, setMode] = useState<'regular' | 'playoffs'>('regular');
   const [playoffGames, setPlayoffGames] = useState<Game[]>([]);
-  const [playoffWeek, setPlayoffWeek] = useState(100); // 100 = Wild Card, 101 = Divisional, 102 = Conference, 103 = Super Bowl
-  const [teamAbbreviations, setTeamAbbreviations] = useState<{[key: string]: string}>({});
+  const [playoffWeek, setPlayoffWeek] = useState(100);
+  const [teamAbbreviations, setTeamAbbreviations] = useState<{ [key: string]: string }>({});
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
 
+  // Theme drives the app AND chart-factory via the data-theme attribute
   useEffect(() => {
-    // Config first — everything else derives from it (season, week, mode)
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('nfl-pickem-theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    startChartThemeSync();
     const init = async () => {
       const config = await loadSeasonConfig();
       const week = computeCurrentWeek(config);
       setCurrentWeek(week);
       setMode(config.mode);
+      setViewSeason(config.season);
       const round = config.playoffRound ?? config.playoffRounds[0]?.week ?? 100;
       setPlayoffWeek(round);
 
@@ -154,12 +93,17 @@ function App() {
       if (config.mode === 'playoffs') {
         loadPlayoffGames(round);
       }
-      loadPicks();
       loadTeamAbbreviations();
       loadWeatherData();
     };
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Picks load per viewed season (2026 live, or an archived season)
+  useEffect(() => {
+    loadPicks(viewSeason);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewSeason]);
 
   const loadGames = async (week: number) => {
     try {
@@ -292,12 +236,12 @@ function App() {
     }
   };
 
-  const loadPicks = async () => {
+  const loadPicks = async (season: number = seasonConfig.season) => {
     try {
       const { data, error } = await supabase
         .from('picks')
         .select('*')
-        .eq('season', seasonConfig.season)
+        .eq('season', season)
         .order('week', { ascending: true })
         .order('created_at', { ascending: true });
 
@@ -475,644 +419,228 @@ function App() {
     return picks.find(p => p.userId === selectedUser && p.week === playoffWeek);
   };
 
-  const getPlayoffWeekName = (week: number) => playoffWeekName(week);
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-4">
-          <h1 className="text-4xl font-bold text-gray-900">
-            {seasonConfig.title}
-          </h1>
-        </div>
-
-        {/* Mode Toggle */}
-        <div className="flex justify-center mb-6">
-          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
-            <button
-              onClick={() => setMode('regular')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                mode === 'regular'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              Regular Season
-            </button>
-            <button
-              onClick={() => setMode('playoffs')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                mode === 'playoffs'
-                  ? 'bg-green-600 text-white'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              Playoffs
-            </button>
-          </div>
-        </div>
-
-        {/* Regular Season Content */}
-        {mode === 'regular' && (
-          <>
-        {/* Tab Navigation */}
-        <div className="mb-8">
-          <nav className="flex space-x-4 md:space-x-8 overflow-x-auto pb-2">
-            {[
-              { key: 'picks', label: 'Make Picks' },
-              { key: 'leaderboard', label: 'Leaderboard' },
-              { key: 'chart', label: 'Pick Chart' },
-              { key: 'history', label: 'Pick History' },
-              { key: 'insights', label: 'Insights' },
-              { key: 'nfl-trends', label: 'NFL Trends' }
-            ].map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key as any)}
-                className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
-                  activeTab === tab.key
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Controls - only show on picks and history tabs */}
-        {(activeTab === 'picks' || activeTab === 'history') && (
-          <>
-            {/* User Selection */}
-            <div className="mb-8">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select User
-              </label>
-              <select
-                value={selectedUser}
-                onChange={(e) => {
-                  const newUser = e.target.value;
-                  setSelectedUser(newUser);
-                  // Save to localStorage when user changes selection
-                  if (newUser) {
-                    localStorage.setItem('nfl-pickem-user', newUser);
-                  }
-                }}
-                className="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              >
-                {!selectedUser && (
-                  <option value="" disabled>
-                    Select your name...
-                  </option>
-                )}
-                {users.map(user => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
-        )}
-
-        {/* Tab Content */}
-        {activeTab === 'picks' && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-              {selectedUser ? `${users.find(u => u.id === selectedUser)?.name}'s Picks - Week ${currentWeek}` : `Week ${currentWeek} Picks`}
-            </h2>
-            
-            <PickInterface
-              games={games}
-              currentPicks={getCurrentUserPicks()?.picks || []}
-              onSavePicks={(picks) => savePicks(selectedUser, currentWeek, picks)}
-              selectedUser={selectedUser}
-              users={users}
-              weatherData={weatherData}
-            />
-          </div>
-        )}
-
-        {activeTab === 'leaderboard' && (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-              Leaderboard
-            </h2>
-            <Leaderboard users={users} picks={picks} currentWeek={currentWeek} />
-          </div>
-        )}
-
-        {activeTab === 'chart' && (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">Pick Chart - All Users</h2>
-            <PickChart picks={picks} users={users} selectedUser={selectedUser} currentWeek={currentWeek} games={games} teamAbbreviations={teamAbbreviations} />
-          </div>
-        )}
-
-        {activeTab === 'history' && (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-              Pick History - {users.find(u => u.id === selectedUser)?.name}
-            </h2>
-            <PickHistory picks={picks} selectedUser={selectedUser} currentWeek={currentWeek} games={games} />
-          </div>
-        )}
-
-        {activeTab === 'insights' && (
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">📊 League Insights</h2>
-            <InsightsBeta picks={picks} users={users} games={games} teamAbbreviations={teamAbbreviations} currentWeek={currentWeek} />
-          </div>
-        )}
-
-        {activeTab === 'nfl-trends' && (
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">🏈 NFL Trends</h2>
-            <NFLTrends games={games} teamAbbreviations={teamAbbreviations} currentWeek={currentWeek} />
-          </div>
-        )}
-          </>
-        )}
-
-        {/* Playoffs Content */}
-        {mode === 'playoffs' && (
-          <>
-            {/* Playoff Tab Navigation */}
-            <div className="mb-8">
-              <nav className="flex space-x-4 md:space-x-8 overflow-x-auto pb-2">
-                {[
-                  { key: 'picks', label: 'Make Picks' },
-                  { key: 'leaderboard', label: 'Leaderboard' },
-                  { key: 'chart', label: 'Pick Chart' }
-                ].map(tab => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setPlayoffTab(tab.key as 'picks' | 'chart' | 'leaderboard')}
-                    className={`py-2 px-3 border-b-2 font-medium text-sm whitespace-nowrap flex-shrink-0 ${
-                      playoffTab === tab.key
-                        ? 'border-green-500 text-green-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </nav>
-            </div>
-
-            {/* User Selection for Playoffs */}
-            {playoffTab === 'picks' && (
-              <div className="mb-8">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select User
-                </label>
-                <select
-                  value={selectedUser}
-                  onChange={(e) => {
-                    const newUser = e.target.value;
-                    setSelectedUser(newUser);
-                    if (newUser) {
-                      localStorage.setItem('nfl-pickem-user', newUser);
-                    }
-                  }}
-                  className="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
-                >
-                  {!selectedUser && (
-                    <option value="" disabled>
-                      Select your name...
-                    </option>
-                  )}
-                  {users.map(user => (
-                    <option key={user.id} value={user.id}>
-                      {user.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Playoff Picks Tab */}
-            {playoffTab === 'picks' && (
-              <div className="mb-8">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-                  {selectedUser ? `${users.find(u => u.id === selectedUser)?.name}'s Playoff Picks - ${getPlayoffWeekName(playoffWeek)}` : `${getPlayoffWeekName(playoffWeek)} Round Picks`}
-                </h2>
-
-                {playoffWeek === 103 ? (
-                  <SuperBowlPickInterface
-                    game={playoffGames[0]}
-                    currentPicks={getCurrentUserPlayoffPicks()?.picks || []}
-                    onSavePicks={(newPicks) => savePicks(selectedUser, playoffWeek, newPicks)}
-                    selectedUser={selectedUser}
-                    users={users}
-                  />
-                ) : (
-                  <PlayoffPickInterface
-                    games={playoffGames}
-                    currentPicks={getCurrentUserPlayoffPicks()?.picks || []}
-                    onSavePicks={(newPicks) => savePicks(selectedUser, playoffWeek, newPicks)}
-                    selectedUser={selectedUser}
-                    users={users}
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Playoff Pick Chart Tab */}
-            {playoffTab === 'chart' && (
-              <div className="bg-white rounded-lg shadow p-6 mb-8">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-4">Playoff Pick Chart</h2>
-                <PlayoffPickChart
-                  picks={picks}
-                  users={users}
-                  currentPlayoffWeek={playoffWeek}
-                  teamAbbreviations={teamAbbreviations}
-                />
-              </div>
-            )}
-
-            {/* Playoff Leaderboard Tab */}
-            {playoffTab === 'leaderboard' && (
-              <div className="bg-white rounded-lg shadow p-6 mb-8">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-4">Playoff Leaderboard</h2>
-                <PlayoffLeaderboard
-                  picks={picks}
-                  users={users}
-                  playoffWeek={playoffWeek}
-                />
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-interface PickInterfaceProps {
-  games: Game[];
-  currentPicks: TeamPick[];
-  onSavePicks: (picks: TeamPick[]) => void;
-  selectedUser: string;
-  users: User[];
-  weatherData: WeatherData[];
-}
-
-function PickInterface({ games, currentPicks, onSavePicks, selectedUser, users, weatherData }: PickInterfaceProps) {
-  const [selectedPicks, setSelectedPicks] = useState<TeamPick[]>(currentPicks);
-  const [hasExistingPicks, setHasExistingPicks] = useState<boolean>(currentPicks.length > 0);
-  
-  // Update selectedPicks when currentPicks changes (e.g., when user changes)
-  React.useEffect(() => {
-    setSelectedPicks(currentPicks);
-    setHasExistingPicks(currentPicks.length > 0);
-  }, [currentPicks]);
-
-  const handleTeamToggle = (gameId: string, team: string, spread: number) => {
-    // Don't allow changes if the game is locked
-    const game = games.find(g => g.id === gameId);
-    if (game && isGameLocked(game)) {
-      return;
-    }
-
-    setSelectedPicks(prev => {
-      // Check if this team is already selected
-      const existingPickIndex = prev.findIndex(p => p.gameId === gameId && p.team === team);
-      
-      if (existingPickIndex >= 0) {
-        // Remove the selected team
-        return prev.filter((_, index) => index !== existingPickIndex);
-      }
-      
-      // Check if the other team from this game is already selected
-      const otherTeamIndex = prev.findIndex(p => p.gameId === gameId && p.team !== team);
-      
-      if (otherTeamIndex >= 0) {
-        // Replace the other team selection with this team
-        const newPicks = [...prev];
-        newPicks[otherTeamIndex] = { gameId, team, spread };
-        return newPicks;
-      }
-      
-      // Add new team selection if less than 3 picks
-      if (prev.length < 3) {
-        return [...prev, { gameId, team, spread }];
-      }
-      
-      // Can't add more than 3 picks
-      return prev;
-    });
+  const selectUser = (userId: string) => {
+    setSelectedUser(userId);
+    localStorage.setItem('nfl-pickem-user', userId);
   };
 
-  // Get weather data for a specific team (home team)
-  const getWeatherForTeam = (teamName: string): WeatherData | null => {
-    return weatherData.find(w => w.team === teamName) || null;
-  };
+  const isCurrentSeason = viewSeason === seasonConfig.season;
+  const activeGames = mode === 'playoffs' ? playoffGames : games;
+  const activeWeek = mode === 'playoffs' ? playoffWeek : currentWeek;
+  const navItems = isCurrentSeason
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter((item) => item.key === 'standings' || item.key === 'stats');
+  const effectiveView: ViewKey = navItems.some((item) => item.key === view)
+    ? view
+    : 'standings';
 
-  // Format weather for display
-  const formatWeatherDisplay = (weather: WeatherData | null): string => {
-    if (!weather || !weather.weather_summary) return '';
-    
-    const summary = weather.weather_summary;
-    let formatted = '';
-    
-    // Temperature with icon (only for extreme conditions)
-    // Match temperature patterns like "37°F" or "37°F (feels 30°F)"
-    const tempMatch = summary.match(/(\d+)°F(?:\s*\(feels\s+\d+°F\))?/);
-    if (tempMatch) {
-      const tempNumMatch = tempMatch[0].match(/(\d+)°F/);
-      if (tempNumMatch) {
-        const temp = parseInt(tempNumMatch[1]);
-        if (temp < 32) {
-          formatted += `🥶 ${tempMatch[0]}`;
-        } else if (temp > 80) {
-          formatted += `☀️ ${tempMatch[0]}`;
-        } else {
-          formatted += tempMatch[0]; // No icon for normal temps
-        }
-      }
-    }
-    
-    // Rain
-    if (summary.includes('rain')) {
-      const rainMatch = summary.match(/(\d+)% chance rain/);
-      if (rainMatch) {
-        formatted += ` | 🌧️ ${rainMatch[1]}% rain`;
-      }
-    }
-    
-    // Snow (only if actually snowing)
-    if (summary.includes('Snow') || summary.includes('snow')) {
-      formatted += ' | ❄️ Snow';
-    }
-    
-    // Wind
-    const windMatch = summary.match(/Windy \((\d+)mph/);
-    if (windMatch) {
-      formatted += ` | 💨 ${windMatch[1]}mph winds`;
-    }
-    
-    return formatted;
-  };
+  const headerWeekLabel = isCurrentSeason
+    ? mode === 'playoffs'
+      ? playoffWeekName(playoffWeek).toUpperCase()
+      : `WEEK ${currentWeek}`
+    : 'FINAL';
 
-  const handleSave = () => {
-    if (selectedPicks.length >= 1 && selectedPicks.length <= 3) {
-      onSavePicks(selectedPicks);
-    }
-  };
-
-  // Check if current picks are different from original picks
-  const arePicksModified = () => {
-    if (!hasExistingPicks && selectedPicks.length > 0) return true;
-    if (hasExistingPicks && selectedPicks.length !== currentPicks.length) return true;
-    
-    // Check if any picks have changed
-    return selectedPicks.some(pick => {
-      const originalPick = currentPicks.find(op => op.gameId === pick.gameId);
-      return !originalPick || originalPick.team !== pick.team || originalPick.spread !== pick.spread;
-    });
-  };
-
-  const getButtonText = () => {
-    const userName = users.find(u => u.id === selectedUser)?.name || 'Unknown User';
-    
-    if (!hasExistingPicks) {
-      return `Save Picks for ${userName} (${selectedPicks.length}/3)`;
-    } else if (arePicksModified()) {
-      return `Update Picks for ${userName} (${selectedPicks.length}/3)`;
-    } else {
-      return `Picks Saved for ${userName} (${selectedPicks.length}/3)`;
-    }
-  };
-
-  const formatGameTime = (kickoffEt: string) => {
-    const date = new Date(kickoffEt);
-    
-    // Get user's timezone for display
-    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const timezoneAbbr = new Date().toLocaleTimeString('en-US', { 
-      timeZoneName: 'short' 
-    }).split(' ')[2];
-    
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short',
-      month: 'short', 
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: userTimezone
-    }) + ` ${timezoneAbbr}`;
-  };
-
-
-  const getGameSelectionState = (gameId: string) => {
-    const gamePick = selectedPicks.find(p => p.gameId === gameId);
-    return gamePick ? gamePick.team : null;
-  };
-
-  const isGameLocked = (game: Game) => {
-    const gameTime = new Date(game.kickoff_et);
-    const now = new Date();
-    return now >= gameTime;
-  };
-
-
-  return (
-    <div>
-      <div className="mb-4">
-        {!selectedUser ? (
-          <p className="text-sm text-red-600 font-medium">
-            ⚠️ Please select your name from the dropdown above before making picks
-          </p>
-        ) : (
-          <p className="text-sm text-gray-600">
-            {hasExistingPicks
-              ? `Update your picks - Select up to 3 teams (${selectedPicks.length}/3 selected)`
-              : `Select up to 3 teams (${selectedPicks.length}/3 selected)`
-            }
-          </p>
-        )}
-        {hasExistingPicks && !arePicksModified() && selectedPicks.length >= 1 && (
-          <p className="text-sm text-green-600 mt-1">
-            ✓ Your picks have been saved. Make changes to update them.
-          </p>
-        )}
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {games.map(game => {
-          const selectedTeam = getGameSelectionState(game.id);
-          const canSelect = selectedPicks.length < 3 || selectedTeam !== null;
-          const gameLocked = isGameLocked(game);
-          
-          return (
-            <div key={game.id} className={`border rounded-lg p-4 shadow-md transition-shadow ${
-              gameLocked ? 'bg-gray-50 border-gray-300' : 'bg-white hover:shadow-lg'
-            }`}>
-              <div className="mb-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className={`text-lg font-bold ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>
-                      {getMascotName(game.away)} @ {getMascotName(game.home)}
-                    </span>
-                    <span className={`text-sm ml-3 ${gameLocked ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {formatGameTime(game.kickoff_et)}
-                    </span>
-                  </div>
-                  {gameLocked && (
-                    <div className="flex items-center text-red-600">
-                      <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-xs font-medium">LOCKED</span>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Weather Display */}
-                {(() => {
-                  const weather = getWeatherForTeam(game.home);
-                  const weatherDisplay = formatWeatherDisplay(weather);
-                  return weatherDisplay ? (
-                    <div className={`text-xs mt-1 ${gameLocked ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {weatherDisplay}
-                    </div>
-                  ) : null;
-                })()}
-              </div>
-              
-              <div className="space-y-3">
-                {/* Away Team Option */}
-                <div 
-                  className={`flex items-center space-x-3 p-3 rounded border transition-colors ${
-                    gameLocked
-                      ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60'
-                      : selectedTeam === game.away
-                        ? 'border-blue-500 bg-blue-50 cursor-pointer' 
-                        : canSelect
-                          ? 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer'
-                          : 'border-gray-200 bg-gray-100 cursor-not-allowed opacity-50'
-                  }`}
-                  onClick={() => !gameLocked && canSelect && handleTeamToggle(game.id, game.away, game.spread_away)}
-                >
-                  <input
-                    type="radio"
-                    name={`game-${game.id}`}
-                    checked={selectedTeam === game.away}
-                    onChange={() => !gameLocked && canSelect && handleTeamToggle(game.id, game.away, game.spread_away)}
-                    disabled={!canSelect || gameLocked}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  {getTeamLogo(game.away) && (
-                    <img 
-                      src={getTeamLogo(game.away)} 
-                      alt={game.away}
-                      className="w-8 h-8 object-contain"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
-                  )}
-                  <div className="flex-1">
-                    <div className={`font-medium text-lg ${
-                      gameLocked ? 'text-gray-500' : 'text-gray-900'
-                    }`}>
-                      {game.away}
-                    </div>
-                    <div className={`text-lg font-bold ${
-                      gameLocked ? 'text-gray-400' : 'text-blue-600'
-                    }`}>
-                      {game.spread_away > 0 ? `+${game.spread_away}` : game.spread_away}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Home Team Option */}
-                <div 
-                  className={`flex items-center space-x-3 p-3 rounded border transition-colors ${
-                    gameLocked
-                      ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-60'
-                      : selectedTeam === game.home
-                        ? 'border-blue-500 bg-blue-50 cursor-pointer' 
-                        : canSelect
-                          ? 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer'
-                          : 'border-gray-200 bg-gray-100 cursor-not-allowed opacity-50'
-                  }`}
-                  onClick={() => !gameLocked && canSelect && handleTeamToggle(game.id, game.home, game.spread_home)}
-                >
-                  <input
-                    type="radio"
-                    name={`game-${game.id}`}
-                    checked={selectedTeam === game.home}
-                    onChange={() => !gameLocked && canSelect && handleTeamToggle(game.id, game.home, game.spread_home)}
-                    disabled={!canSelect || gameLocked}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  {getTeamLogo(game.home) && (
-                    <img 
-                      src={getTeamLogo(game.home)} 
-                      alt={game.home}
-                      className="w-8 h-8 object-contain"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
-                  )}
-                  <div className="flex-1">
-                    <div className={`font-medium text-lg ${
-                      gameLocked ? 'text-gray-500' : 'text-gray-900'
-                    }`}>
-                      {game.home}
-                    </div>
-                    <div className={`text-lg font-bold ${
-                      gameLocked ? 'text-gray-400' : 'text-blue-600'
-                    }`}>
-                      {game.spread_home > 0 ? `+${game.spread_home}` : game.spread_home}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
+  const navButtons = (variant: 'top' | 'bottom') =>
+    navItems.map((item) => (
       <button
-        onClick={handleSave}
-        disabled={!selectedUser || selectedPicks.length < 1 || selectedPicks.length > 3 || (hasExistingPicks && !arePicksModified())}
-        className={`w-full py-2 px-4 rounded-md ${
-          !selectedUser || selectedPicks.length < 1 || selectedPicks.length > 3
-            ? 'bg-gray-400 text-white cursor-not-allowed'
-            : hasExistingPicks && !arePicksModified()
-              ? 'bg-green-600 text-white cursor-not-allowed'
-              : hasExistingPicks && arePicksModified()
-                ? 'bg-orange-600 text-white hover:bg-orange-700'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-        }`}
+        key={item.key}
+        className={effectiveView === item.key ? 'on' : ''}
+        onClick={() => setView(item.key)}
       >
-        {getButtonText()}
+        {variant === 'bottom' && <span className="ico">{item.icon}</span>}
+        {item.label}
       </button>
+    ));
+
+  return (
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 14px' }}>
+      <header
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 30,
+          background: 'var(--paper)',
+          borderBottom: '1px solid var(--line)',
+          margin: '0 -14px',
+          padding: '0 14px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0' }}>
+          <div className="disp" style={{ fontSize: '1.25rem', fontWeight: 700, lineHeight: 1 }}>
+            Spread League
+            <small
+              style={{
+                display: 'block',
+                fontSize: '0.62rem',
+                letterSpacing: '0.18em',
+                color: 'var(--accent)',
+                fontWeight: 700,
+              }}
+            >
+              {viewSeason} · {headerWeekLabel}
+            </small>
+          </div>
+          <div style={{ flex: 1 }} />
+          <span className="sl-ctx">
+            <select
+              value={viewSeason}
+              onChange={(event) => setViewSeason(parseInt(event.target.value, 10))}
+              aria-label="Season"
+            >
+              <option value={seasonConfig.season}>Season {seasonConfig.season}</option>
+              <option value={2025}>Season 2025</option>
+            </select>
+          </span>
+          <button
+            className="sl-ctx"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            title="Toggle theme"
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+          {selectedUser ? (
+            <span
+              title={users.find((user) => user.id === selectedUser)?.name}
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: '50%',
+                background: 'var(--accent)',
+                color: 'var(--accent-ink)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+              }}
+            >
+              {users.find((user) => user.id === selectedUser)?.name[0]}
+            </span>
+          ) : null}
+        </div>
+        <nav className="sl-topnav" style={{ display: 'flex', gap: 4, paddingBottom: 8 }}>
+          {navButtons('top')}
+        </nav>
+      </header>
+
+      {!isCurrentSeason && (
+        <div
+          className="sl-card"
+          style={{
+            marginTop: 12,
+            padding: '8px 14px',
+            fontSize: '0.82rem',
+            color: 'var(--ink-soft)',
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          📜 Viewing the <b style={{ color: 'var(--ink)' }}>{viewSeason} season archive</b>
+          <button
+            className="sl-ctx"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setViewSeason(seasonConfig.season)}
+          >
+            Back to {seasonConfig.season}
+          </button>
+        </div>
+      )}
+
+      {effectiveView === 'week' && (
+        <ThisWeekScreen
+          games={activeGames}
+          picks={picks}
+          users={users}
+          selectedUser={selectedUser}
+          currentWeek={activeWeek}
+          weatherData={weatherData}
+          onGoPick={() => setView('picks')}
+        />
+      )}
+
+      {effectiveView === 'picks' &&
+        (mode === 'regular' ? (
+          <PicksScreen
+            games={games}
+            users={users}
+            selectedUser={selectedUser}
+            currentWeek={currentWeek}
+            currentPicks={getCurrentUserPicks()?.picks || []}
+            weatherData={weatherData}
+            picks={picks}
+            onSavePicks={(teamPicks) => savePicks(selectedUser, currentWeek, teamPicks)}
+            onSelectUser={selectUser}
+          />
+        ) : (
+          <div style={{ marginTop: 14 }}>
+            {!selectedUser && (
+              <div className="sl-card" style={{ padding: '12px 16px', marginBottom: 14 }}>
+                <div style={{ fontWeight: 650, marginBottom: 8 }}>Who are you?</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {users.map((user) => (
+                    <button key={user.id} onClick={() => selectUser(user.id)} className="sl-ctx">
+                      {user.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {playoffWeek === 103 && playoffGames.length > 0 ? (
+              <SuperBowlPickInterface
+                game={playoffGames[0]}
+                currentPicks={getCurrentUserPlayoffPicks()?.picks || []}
+                onSavePicks={(teamPicks: TeamPick[]) =>
+                  savePicks(selectedUser, playoffWeek, teamPicks)
+                }
+                selectedUser={selectedUser}
+                users={users}
+              />
+            ) : (
+              <PlayoffPickInterface
+                games={playoffGames}
+                currentPicks={getCurrentUserPlayoffPicks()?.picks || []}
+                onSavePicks={(teamPicks: TeamPick[]) =>
+                  savePicks(selectedUser, playoffWeek, teamPicks)
+                }
+                selectedUser={selectedUser}
+                users={users}
+              />
+            )}
+          </div>
+        ))}
+
+      {effectiveView === 'standings' && (
+        <>
+          <StandingsScreen
+            picks={picks}
+            users={users}
+            teamAbbreviations={teamAbbreviations}
+            selectedUser={selectedUser}
+            season={viewSeason}
+          />
+          {isCurrentSeason && mode === 'playoffs' && (
+            <>
+              <h2 className="sl-sec">Playoffs</h2>
+              <PlayoffLeaderboard picks={picks} users={users} playoffWeek={playoffWeek} />
+              <PlayoffPickChart
+                picks={picks}
+                users={users}
+                currentPlayoffWeek={playoffWeek}
+                teamAbbreviations={teamAbbreviations}
+              />
+            </>
+          )}
+        </>
+      )}
+
+      {effectiveView === 'stats' && (
+        <StatsScreen picks={picks} users={users} selectedUser={selectedUser} />
+      )}
+
+      <nav className="sl-bottomnav">{navButtons('bottom')}</nav>
     </div>
   );
-}
-
-interface LeaderboardProps {
-  users: User[];
-  picks: Pick[];
-  currentWeek: number;
-}
-
-interface PickChartProps {
-  picks: Pick[];
-  users: User[];
-  selectedUser: string;
-  currentWeek: number;
-  games: Game[];
-  teamAbbreviations: {[key: string]: string};
-}
-
-interface PickHistoryProps {
-  picks: Pick[];
-  selectedUser: string;
-  currentWeek: number;
-  games: Game[];
 }
 
 interface PlayoffPickInterfaceProps {
@@ -2655,1804 +2183,6 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
   );
 }
 
-function Leaderboard({ users, picks, currentWeek }: LeaderboardProps) {
-  const getUserTotalCorrect = (userId: string) => {
-    // Only count completed weeks (exclude current pending week)
-    // Count only wins (correct === true), NOT pushes (correct === null)
-    return picks.filter(p => p.userId === userId && p.week < currentWeek).reduce((sum, pick) => {
-      return sum + pick.picks.filter(teamPick => teamPick.correct === true).length;
-    }, 0);
-  };
-
-  const getUserTotalPicks = (userId: string) => {
-    // Count all picks made (including pushes), but only from completed weeks
-    return picks.filter(p => p.userId === userId && p.week < currentWeek).reduce((sum, pick) => {
-      return sum + pick.picks.length;
-    }, 0);
-  };
-
-  const getUserPercentage = (userId: string) => {
-    const total = getUserTotalPicks(userId);
-    if (total === 0) return 0;
-    return Math.round((getUserTotalCorrect(userId) / total) * 100);
-  };
-
-  const getUserLast5WeeksPercentage = (userId: string, currentWeek: number) => {
-    const last5Weeks = Math.max(1, currentWeek - 5);
-    const recentPicks = picks.filter(p => p.userId === userId && p.week >= last5Weeks && p.week < currentWeek);
-    
-    const recentCorrect = recentPicks.reduce((sum, pick) => {
-      return sum + pick.picks.filter(teamPick => teamPick.correct === true).length;
-    }, 0);
-    const recentTotal = recentPicks.reduce((sum, pick) => sum + pick.picks.length, 0);
-    
-    if (recentTotal === 0) return 0;
-    return Math.round((recentCorrect / recentTotal) * 100);
-  };
-
-  // Create leaderboard data with calculated stats
-  const sortedData = users.map(user => ({
-    id: user.id,
-    name: user.name,
-    totalCorrect: getUserTotalCorrect(user.id),
-    totalPicks: getUserTotalPicks(user.id),
-    percentage: getUserPercentage(user.id),
-    last5WeeksPercentage: getUserLast5WeeksPercentage(user.id, currentWeek)
-  })).sort((a, b) => {
-    // Sort by total correct first, then by percentage
-    if (b.totalCorrect !== a.totalCorrect) {
-      return b.totalCorrect - a.totalCorrect;
-    }
-    return b.percentage - a.percentage;
-  });
-
-  // Add standard competition ranking (1224 ranking)
-  const leaderboardData: Array<typeof sortedData[0] & { rank: number }> = [];
-  for (let i = 0; i < sortedData.length; i++) {
-    let rank = 1;
-    if (i > 0) {
-      const prevUser = leaderboardData[i - 1];
-      const currentUser = sortedData[i];
-      
-      // If total correct is the same as previous user, use same rank
-      if (prevUser.totalCorrect === currentUser.totalCorrect) {
-        rank = prevUser.rank;
-      } else {
-        rank = i + 1;
-      }
-    }
-    leaderboardData.push({ ...sortedData[i], rank });
-  }
-
-  // Group stats
-  const groupStats = {
-    totalCorrect: leaderboardData.reduce((sum, user) => sum + user.totalCorrect, 0),
-    totalPicks: leaderboardData.reduce((sum, user) => sum + user.totalPicks, 0)
-  };
-  const groupPercentage = groupStats.totalPicks > 0 ? Math.round((groupStats.totalCorrect / groupStats.totalPicks) * 100) : 0;
-
-  return (
-    <div>
-      {/* Group Performance Summary */}
-      <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold text-blue-900 mb-2">League Performance</h3>
-          <div className="flex justify-center items-center space-x-8">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">
-                {groupStats.totalCorrect}/{groupStats.totalPicks}
-              </div>
-              <div className="text-sm text-blue-700">Total Correct Picks</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">
-                {groupPercentage}%
-              </div>
-              <div className="text-sm text-blue-700">League Success Rate</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Rank
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Correct
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Overall
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last 5 Weeks
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {leaderboardData.map((user) => {
-              const isTopPerformer = user.rank === 1 && user.percentage > 0;
-              return (
-                <tr key={user.id} className={isTopPerformer ? 'bg-yellow-50' : ''}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    <div className="flex items-center">
-                      {user.rank === 1 && user.percentage > 0 && <span className="text-yellow-500 mr-2">🏆</span>}
-                      {user.rank === Math.max(...leaderboardData.map(u => u.rank)) && leaderboardData.length > 1 && <span className="text-red-500 mr-2">🤡</span>}
-                      #{user.rank}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {user.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className="font-semibold">{user.totalCorrect}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {user.totalPicks}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className={`font-semibold px-2 py-1 rounded ${
-                      user.percentage >= 60 ? 'bg-green-100 text-green-800' :
-                      user.percentage >= 50 ? 'bg-yellow-100 text-yellow-800' :
-                      user.percentage > 0 ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-500'
-                    }`}>
-                      {user.percentage}%
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className={`font-semibold px-2 py-1 rounded ${
-                      user.last5WeeksPercentage >= 60 ? 'bg-green-100 text-green-800' :
-                      user.last5WeeksPercentage >= 40 ? 'bg-gray-100 text-gray-600' :
-                      user.last5WeeksPercentage > 0 ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-500'
-                    }`}>
-                      {user.last5WeeksPercentage}%
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      
-      {/* Heatmap - Weekly Performance */}
-      <div className="mt-8 bg-white rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">🔥 Weekly Performance Heatmap</h3>
-        <div className="overflow-x-auto">
-          <div style={{ minWidth: '600px' }}>
-            <div className="grid grid-cols-1 gap-2">
-              {/* Header row */}
-              <div className="grid gap-1" style={{ gridTemplateColumns: '80px repeat(' + (currentWeek - 1) + ', 40px)' }}>
-                <div className="text-xs font-medium text-gray-500 p-2">User</div>
-                {Array.from({ length: currentWeek - 1 }, (_, i) => (
-                  <div key={`week-header-${i}`} className="text-xs font-medium text-gray-500 text-center p-2">
-                    W{i + 1}
-                  </div>
-                ))}
-              </div>
-
-              {/* User rows */}
-              {leaderboardData.map(user => {
-                const userPicks = picks.filter(p => p.userId === user.id);
-                return (
-                  <div key={user.id} className="grid gap-1" style={{ gridTemplateColumns: '80px repeat(' + (currentWeek - 1) + ', 40px)' }}>
-                    <div className="text-sm font-medium text-gray-900 p-2 bg-gray-50 rounded">
-                      {user.name}
-                    </div>
-                    {Array.from({ length: currentWeek - 1 }, (_, i) => {
-                      const weekPick = userPicks.find(p => p.week === i + 1);
-                      const correctCount = weekPick ? weekPick.correct : 0;
-                      
-                      // 4-color palette for 0, 1, 2, 3 correct picks
-                      const getColorClass = (count: number) => {
-                        if (count === 0) return 'bg-red-200'; // 0 correct - Light red
-                        if (count === 1) return 'bg-orange-200'; // 1 correct - Light orange
-                        if (count === 2) return 'bg-yellow-200'; // 2 correct - Light yellow
-                        if (count === 3) return 'bg-green-200'; // 3 correct - Light green
-                        return 'bg-gray-200'; // No picks
-                      };
-                      
-                      const getTextColorClass = (count: number) => {
-                        if (count === 0) return 'text-red-700';
-                        if (count === 1) return 'text-orange-700';
-                        if (count === 2) return 'text-yellow-700';
-                        if (count === 3) return 'text-green-700';
-                        return 'text-gray-500';
-                      };
-                      
-                      return (
-                        <div 
-                          key={`${user.id}-week-${i + 1}`} 
-                          className={`h-8 w-8 rounded text-xs font-bold flex items-center justify-center ${
-                            weekPick ? getColorClass(correctCount) : 'bg-gray-200'
-                          } ${
-                            weekPick ? getTextColorClass(correctCount) : 'text-gray-500'
-                          }`}
-                          title={`${user.name} - Week ${i + 1}: ${weekPick ? `${correctCount}/3 correct` : 'No picks'}`}
-                        >
-                          {weekPick ? correctCount : ''}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-            
-            {/* Legend */}
-            <div className="mt-4 flex items-center justify-center gap-4 text-xs">
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-red-200 rounded"></div>
-                <span>0 Correct</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-orange-200 rounded"></div>
-                <span>1 Correct</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-yellow-200 rounded"></div>
-                <span>2 Correct</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-green-200 rounded"></div>
-                <span>3 Correct</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-gray-200 rounded"></div>
-                <span>No picks</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Cumulative Success Percentage Trend Chart */}
-      <div className="mt-8 bg-white rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">📈 Cumulative Success Percentage Trends</h3>
-        <CumulativeTrendChart 
-          picks={picks} 
-          users={leaderboardData} 
-          currentWeek={currentWeek} 
-        />
-      </div>
-    </div>
-  );
-}
-
-interface CumulativeTrendChartProps {
-  picks: Pick[];
-  users: Array<{ id: string; name: string }>;
-  currentWeek: number;
-}
-
-function CumulativeTrendChart({ picks, users, currentWeek }: CumulativeTrendChartProps) {
-  const [highlightedUser, setHighlightedUser] = useState<string | null>(null);
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
-
-  // User colors for the lines
-  const userColors = {
-    'Jacob': '#3B82F6', // Blue
-    'Cam': '#EF4444',   // Red
-    'Connor': '#10B981', // Green
-    'Nathan': '#F59E0B', // Amber
-    'Shane': '#8B5CF6',  // Purple
-    'Max': '#06B6D4',    // Cyan
-    'John': '#EC4899'    // Pink
-  };
-
-  // Calculate cumulative percentages for each user week by week
-  const getTrendData = () => {
-    const trendData: { [userId: string]: { week: number; percentage: number }[] } = {};
-    
-    users.forEach(user => {
-      trendData[user.id] = [];
-      let cumulativeCorrect = 0;
-      let cumulativePicks = 0;
-
-      for (let week = 1; week < currentWeek; week++) {
-        const weekPick = picks.find(p => p.userId === user.id && p.week === week);
-        if (weekPick && weekPick.picks.length > 0) {
-          cumulativeCorrect += weekPick.picks.filter(teamPick => teamPick.correct === true).length;
-          cumulativePicks += weekPick.picks.length;
-        }
-        
-        const percentage = cumulativePicks > 0 ? (cumulativeCorrect / cumulativePicks) * 100 : 0;
-        trendData[user.id].push({ week, percentage });
-      }
-    });
-
-    return trendData;
-  };
-
-  const trendData = getTrendData();
-
-  // SVG dimensions
-  const width = 800;
-  const height = 400;
-  const margin = { top: 20, right: 20, bottom: 40, left: 60 };
-  const chartWidth = width - margin.left - margin.right;
-  const chartHeight = height - margin.top - margin.bottom;
-
-  // Scale functions
-  const xScale = (week: number) => (week - 1) * (chartWidth / Math.max(currentWeek - 2, 1));
-  const yScale = (percentage: number) => chartHeight - (percentage / 100) * chartHeight;
-
-  const createPath = (data: { week: number; percentage: number }[]) => {
-    if (data.length === 0) return '';
-    
-    let path = `M ${xScale(data[0].week)} ${yScale(data[0].percentage)}`;
-    for (let i = 1; i < data.length; i++) {
-      path += ` L ${xScale(data[i].week)} ${yScale(data[i].percentage)}`;
-    }
-    return path;
-  };
-
-  return (
-    <div className="flex gap-6">
-      {/* Chart */}
-      <div className="flex-1">
-        <svg width={width} height={height} className="rounded">
-          {/* Grid lines */}
-          <g className="opacity-20">
-            {/* Horizontal grid lines */}
-            {[0, 25, 50, 75, 100].map(percentage => (
-              <line
-                key={`h-grid-${percentage}`}
-                x1={margin.left}
-                y1={margin.top + yScale(percentage)}
-                x2={margin.left + chartWidth}
-                y2={margin.top + yScale(percentage)}
-                stroke="#666"
-                strokeWidth="1"
-              />
-            ))}
-            {/* Vertical grid lines */}
-            {Array.from({ length: currentWeek - 1 }, (_, i) => i + 1).map(week => (
-              <line
-                key={`v-grid-${week}`}
-                x1={margin.left + xScale(week)}
-                y1={margin.top}
-                x2={margin.left + xScale(week)}
-                y2={margin.top + chartHeight}
-                stroke="#666"
-                strokeWidth="1"
-              />
-            ))}
-          </g>
-
-          {/* Axes */}
-          <g>
-            {/* Y-axis */}
-            <line
-              x1={margin.left}
-              y1={margin.top}
-              x2={margin.left}
-              y2={margin.top + chartHeight}
-              stroke="#333"
-              strokeWidth="2"
-            />
-            {/* X-axis */}
-            <line
-              x1={margin.left}
-              y1={margin.top + chartHeight}
-              x2={margin.left + chartWidth}
-              y2={margin.top + chartHeight}
-              stroke="#333"
-              strokeWidth="2"
-            />
-          </g>
-
-          {/* Y-axis labels */}
-          <g>
-            {[0, 25, 50, 75, 100].map(percentage => (
-              <text
-                key={`y-label-${percentage}`}
-                x={margin.left - 10}
-                y={margin.top + yScale(percentage)}
-                textAnchor="end"
-                dominantBaseline="middle"
-                className="text-xs fill-gray-600"
-              >
-                {percentage}%
-              </text>
-            ))}
-          </g>
-
-          {/* X-axis labels */}
-          <g>
-            {Array.from({ length: currentWeek - 1 }, (_, i) => i + 1).map(week => (
-              <text
-                key={`x-label-${week}`}
-                x={margin.left + xScale(week)}
-                y={margin.top + chartHeight + 20}
-                textAnchor="middle"
-                className="text-xs fill-gray-600"
-              >
-                W{week}
-              </text>
-            ))}
-          </g>
-
-          {/* Trend lines */}
-          <g>
-            {users.map(user => {
-              const data = trendData[user.id];
-              const color = userColors[user.name as keyof typeof userColors] || '#666';
-              const isHighlighted = highlightedUser === user.id;
-              const isOtherHighlighted = highlightedUser !== null && highlightedUser !== user.id;
-              
-              return (
-                <g key={user.id}>
-                  <path
-                    d={createPath(data)}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={isHighlighted ? 4 : isOtherHighlighted ? 1 : 2}
-                    opacity={isOtherHighlighted ? 0.3 : 1}
-                    className="transition-all duration-200"
-                    transform={`translate(${margin.left}, ${margin.top})`}
-                  />
-                  {/* Data points */}
-                  {data.map((point, index) => (
-                    <circle
-                      key={`${user.id}-point-${index}`}
-                      cx={margin.left + xScale(point.week)}
-                      cy={margin.top + yScale(point.percentage)}
-                      r={isHighlighted ? 5 : isOtherHighlighted ? 2 : 3}
-                      fill={color}
-                      opacity={isOtherHighlighted ? 0.3 : 1}
-                      className="transition-all duration-200 cursor-pointer hover:r-4"
-                      onMouseEnter={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        setTooltip({
-                          x: rect.left + rect.width / 2,
-                          y: rect.top - 10,
-                          content: `${user.name} - Week ${point.week}: ${point.percentage.toFixed(1)}%`
-                        });
-                      }}
-                      onMouseLeave={() => setTooltip(null)}
-                    />
-                  ))}
-                </g>
-              );
-            })}
-          </g>
-        </svg>
-      </div>
-
-      {/* Legend */}
-      <div className="w-48">
-        <h4 className="text-sm font-semibold text-gray-700 mb-3">Click to highlight:</h4>
-        <div className="space-y-2">
-          {users.map(user => {
-            const color = userColors[user.name as keyof typeof userColors] || '#666';
-            const currentPercentage = trendData[user.id].length > 0 
-              ? trendData[user.id][trendData[user.id].length - 1].percentage 
-              : 0;
-            
-            return (
-              <div
-                key={user.id}
-                className={`flex items-center justify-between p-2 rounded cursor-pointer transition-all ${
-                  highlightedUser === user.id ? 'bg-gray-100 ring-2 ring-blue-300' : 'hover:bg-gray-50'
-                }`}
-                onClick={() => setHighlightedUser(highlightedUser === user.id ? null : user.id)}
-              >
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-4 h-1 rounded"
-                    style={{ backgroundColor: color }}
-                  />
-                  <span className="text-sm font-medium">{user.name}</span>
-                </div>
-                <span className="text-xs text-gray-600">
-                  {currentPercentage.toFixed(1)}%
-                </span>
-              </div>
-            );
-          })}
-        </div>
-        
-        {highlightedUser && (
-          <button
-            onClick={() => setHighlightedUser(null)}
-            className="mt-3 w-full text-xs px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded transition-colors"
-          >
-            Clear highlight
-          </button>
-        )}
-      </div>
-
-      {/* Tooltip */}
-      {tooltip && (
-        <div
-          className="fixed bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none z-50"
-          style={{
-            left: tooltip.x,
-            top: tooltip.y,
-            transform: 'translateX(-50%)'
-          }}
-        >
-          {tooltip.content}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbreviations }: PickChartProps) {
-  const weeks = Array.from({ length: currentWeek }, (_, i) => i + 1);
-
-  const getPickInfo = (pick: TeamPick) => {
-    // Use team abbreviation from YAML mapping
-    const teamAbbr = teamAbbreviations[pick.team] || pick.team.split(' ').slice(-1)[0].substring(0, 3).toUpperCase();
-    return `${teamAbbr} ${pick.spread > 0 ? '+' : ''}${pick.spread}`;
-  };
-
-  const getUserTotalCorrect = (userId: string) => {
-    // Only count completed weeks (exclude current pending week)
-    // Count only wins (correct === true), NOT pushes (correct === null)
-    return picks.filter(p => p.userId === userId && p.week < currentWeek).reduce((sum, pick) => {
-      return sum + pick.picks.filter(teamPick => teamPick.correct === true).length;
-    }, 0);
-  };
-
-  const getUserTotalPicks = (userId: string) => {
-    // Count all picks made (including pushes), but only from completed weeks
-    return picks.filter(p => p.userId === userId && p.week < currentWeek).reduce((sum, pick) => {
-      return sum + pick.picks.length;
-    }, 0);
-  };
-
-  const getUserPercentage = (userId: string) => {
-    const total = getUserTotalPicks(userId);
-    if (total === 0) return 0;
-    return Math.round((getUserTotalCorrect(userId) / total) * 100);
-  };
-
-  const getGroupTotals = () => {
-    const totalCorrect = users.reduce((sum, user) => sum + getUserTotalCorrect(user.id), 0);
-    const totalPicks = users.reduce((sum, user) => sum + getUserTotalPicks(user.id), 0);
-    const percentage = totalPicks > 0 ? Math.round((totalCorrect / totalPicks) * 100) : 0;
-    
-    return { totalCorrect, totalPicks, percentage };
-  };
-
-  const groupTotals = getGroupTotals();
-
-  const getWeekGroupTotals = (week: number) => {
-    const weekPicks = picks.filter(p => p.week === week);
-    // Count all picks made (including pushes - correct === null)
-    // Pushes count in denominator but NOT in numerator
-    const totalPicks = weekPicks.reduce((acc, userWeek) => {
-      return acc + userWeek.picks.length;
-    }, 0);
-    const totalCorrect = weekPicks.reduce((sum, userWeek) => {
-      return sum + userWeek.picks.filter(teamPick => teamPick.correct === true).length;
-    }, 0);
-    const percentage = totalPicks > 0 ? Math.round((totalCorrect / totalPicks) * 100) : 0;
-    
-    return { totalCorrect, totalPicks, percentage };
-  };
-
-  return (
-    <div>
-      {/* Group Total KPI */}
-      <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold text-blue-900 mb-2">Group Performance</h3>
-          <div className="flex justify-center items-center space-x-8">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">
-                {groupTotals.totalCorrect}/{groupTotals.totalPicks}
-              </div>
-              <div className="text-sm text-blue-700">Correct Picks</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">
-                {groupTotals.percentage}%
-              </div>
-              <div className="text-sm text-blue-700">Success Rate</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 text-xs">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 z-20 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ width: '110px', minWidth: '110px', maxWidth: '110px', boxSizing: 'border-box' }}>User</th>
-            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase sticky z-20 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ left: '110px', width: '70px', minWidth: '70px', maxWidth: '70px', boxSizing: 'border-box' }}>Total</th>
-            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase sticky z-20 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-gray-300" style={{ left: '180px', width: '60px', minWidth: '60px', maxWidth: '60px', boxSizing: 'border-box' }}>%</th>
-            {weeks.map(week => (
-              <th key={week} className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase border-l border-gray-200" style={{ width: '120px', minWidth: '120px' }}>
-                W{week}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {users.map(user => {
-            const userPicks = picks.filter(p => p.userId === user.id);
-            const totalCorrect = getUserTotalCorrect(user.id);
-            const percentage = getUserPercentage(user.id);
-            
-            return (
-              <tr key={user.id} className="group hover:bg-gray-50">
-                <td className="px-1 py-2 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ width: '110px', minWidth: '110px', maxWidth: '110px', boxSizing: 'border-box' }}>
-                  {user.name}
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-900 sticky z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ left: '110px', width: '70px', minWidth: '70px', maxWidth: '70px', boxSizing: 'border-box' }}>
-                  {totalCorrect}
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-900 sticky z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-gray-300" style={{ left: '180px', width: '60px', minWidth: '60px', maxWidth: '60px', boxSizing: 'border-box' }}>
-                  {percentage}%
-                </td>
-                {weeks.map(week => {
-                  const weekPick = userPicks.find(p => p.week === week);
-                  const isCurrentWeek = week === currentWeek;
-                  
-                  return (
-                    <td key={week} className={`px-3 py-2 text-center text-xs border-l border-gray-200 ${isCurrentWeek ? 'bg-blue-50' : ''}`} style={{ width: '120px', minWidth: '120px' }}>
-                      {weekPick ? (
-                        <div className="text-left">
-                          {weekPick.picks.map((pick, idx) => {
-                            // The result column distinguishes pushes ('P') from
-                            // ungraded picks (null) — no week-based guessing
-                            const isPush = pick.result === 'P';
-                            const isTrulyPending = !isPush &&
-                              (pick.result === null || pick.result === undefined) &&
-                              (pick.correct === null || pick.correct === undefined);
-                            
-                            // Hide all users' picks when game is pending
-                            const shouldHidePick = isTrulyPending;
-                            
-                            const textColorClass = isPush
-                              ? 'text-yellow-600 font-medium'
-                              : isTrulyPending 
-                                ? 'text-gray-400' 
-                                : pick.correct 
-                                  ? 'text-green-600 font-medium' 
-                                  : 'text-red-500';
-                            const resultIcon = isPush ? '↔️' : isTrulyPending ? '⏳' : pick.correct ? '✅' : '❌';
-                            
-                            return (
-                              <div key={idx} className="border-b border-gray-100 py-1 last:border-b-0">
-                                <div className="flex items-center justify-between">
-                                  <span className={`text-xs ${textColorClass}`}>
-                                    {shouldHidePick ? '🤷‍♂️' : getPickInfo(pick)}
-                                  </span>
-                                  <span className="ml-1">
-                                    {shouldHidePick ? '' : resultIcon}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                          <div className="font-semibold text-gray-700 text-xs mt-1 pt-1 border-t border-gray-200">
-                            {weekPick.correct}/{weekPick.picks.length}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-          
-          {/* Group Total Row */}
-          <tr className="bg-gray-100 border-t-2 border-gray-300 font-semibold">
-            <td className="px-1 py-2 whitespace-nowrap text-sm font-bold text-gray-900 sticky left-0 z-10 bg-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ width: '110px', minWidth: '110px', maxWidth: '110px', boxSizing: 'border-box' }}>
-              GROUP TOTAL
-            </td>
-            <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-bold text-gray-900 sticky z-10 bg-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" style={{ left: '110px', width: '70px', minWidth: '70px', maxWidth: '70px', boxSizing: 'border-box' }}>
-              {groupTotals.totalCorrect}
-            </td>
-            <td className="px-3 py-2 whitespace-nowrap text-sm text-center font-bold text-gray-900 sticky z-10 bg-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-gray-300" style={{ left: '180px', width: '60px', minWidth: '60px', maxWidth: '60px', boxSizing: 'border-box' }}>
-              {groupTotals.percentage}%
-            </td>
-            {weeks.map(week => {
-              const weekGroupTotals = getWeekGroupTotals(week);
-              const isCurrentWeek = week === currentWeek;
-              
-              return (
-                <td key={week} className={`px-3 py-2 text-center text-xs font-bold border-l border-gray-200 ${isCurrentWeek ? 'bg-blue-100' : 'bg-gray-100'}`} style={{ width: '120px', minWidth: '120px' }}>
-                  {weekGroupTotals.totalPicks > 0 ? (
-                    <div className="text-center">
-                      <div className="text-sm font-bold text-gray-900">
-                        {weekGroupTotals.totalCorrect}/{weekGroupTotals.totalPicks}
-                      </div>
-                      <div className="text-xs text-gray-700">
-                        {weekGroupTotals.percentage}%
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
-                </td>
-              );
-            })}
-          </tr>
-        </tbody>
-      </table>
-      </div>
-    </div>
-  );
-}
-
-function PickHistory({ picks, selectedUser, currentWeek, games }: PickHistoryProps) {
-  const weeks = Array.from({ length: seasonConfig.regularSeasonWeeks }, (_, i) => i + 1);
-  const userPicks = picks.filter(pick => pick.userId === selectedUser);
-  
-  const getPickInfo = (pick: TeamPick) => {
-    // Extract just the mascot name for history view
-    const mascotName = pick.team.split(' ').slice(-1)[0]; // Gets "Cowboys" from "Dallas Cowboys"
-    const game = games.find(g => g.id === pick.gameId);
-    if (!game) return `${mascotName} (${pick.spread > 0 ? '+' : ''}${pick.spread})`;
-    
-    const opponent = pick.team === game.away ? game.home : game.away;
-    const opponentMascot = opponent.split(' ').slice(-1)[0]; // Gets mascot from opponent too
-    const location = pick.team === game.away ? '@' : 'vs';
-    return `${mascotName} ${location} ${opponentMascot} (${pick.spread > 0 ? '+' : ''}${pick.spread})`;
-  };
-  
-  return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Week</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pick 1</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pick 2</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pick 3</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correct</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {weeks.map((week) => {
-            const weekPick = userPicks.find(p => p.week === week);
-            const isCurrentWeek = week === currentWeek;
-            
-            return (
-              <tr key={week} className={isCurrentWeek ? 'bg-blue-50' : ''}>
-                <td className={`px-4 py-3 whitespace-nowrap text-sm font-medium ${isCurrentWeek ? 'text-blue-900' : 'text-gray-900'}`}>
-                  Week {week}
-                </td>
-                <td className={`px-4 py-3 whitespace-nowrap text-sm ${
-                  weekPick?.picks[0] 
-                    ? weekPick.picks[0].correct === null || weekPick.picks[0].correct === undefined
-                      ? 'text-gray-400'
-                      : weekPick.picks[0].correct 
-                        ? 'text-green-600 font-medium' 
-                        : 'text-red-500' 
-                    : 'text-gray-500'
-                }`}>
-                  {weekPick?.picks[0] ? (
-                    (weekPick.picks[0].correct === null || weekPick.picks[0].correct === undefined) && week === currentWeek 
-                      ? '🤷‍♂️' 
-                      : getPickInfo(weekPick.picks[0])
-                  ) : '-'}
-                </td>
-                <td className={`px-4 py-3 whitespace-nowrap text-sm ${
-                  weekPick?.picks[1] 
-                    ? weekPick.picks[1].correct === null || weekPick.picks[1].correct === undefined
-                      ? 'text-gray-400'
-                      : weekPick.picks[1].correct 
-                        ? 'text-green-600 font-medium' 
-                        : 'text-red-500' 
-                    : 'text-gray-500'
-                }`}>
-                  {weekPick?.picks[1] ? (
-                    (weekPick.picks[1].correct === null || weekPick.picks[1].correct === undefined) && week === currentWeek 
-                      ? '🤷‍♂️' 
-                      : getPickInfo(weekPick.picks[1])
-                  ) : '-'}
-                </td>
-                <td className={`px-4 py-3 whitespace-nowrap text-sm ${
-                  weekPick?.picks[2] 
-                    ? weekPick.picks[2].correct === null || weekPick.picks[2].correct === undefined
-                      ? 'text-gray-400'
-                      : weekPick.picks[2].correct 
-                        ? 'text-green-600 font-medium' 
-                        : 'text-red-500' 
-                    : 'text-gray-500'
-                }`}>
-                  {weekPick?.picks[2] ? (
-                    (weekPick.picks[2].correct === null || weekPick.picks[2].correct === undefined) && week === currentWeek 
-                      ? '🤷‍♂️' 
-                      : getPickInfo(weekPick.picks[2])
-                  ) : '-'}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                  {weekPick ? `${weekPick.correct}/${weekPick.picks.length}` : '-'}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      
-      {userPicks.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          No picks found for this user.
-        </div>
-      )}
-    </div>
-  );
-}
-
-interface InsightsBetaProps {
-  picks: Pick[];
-  users: User[];
-  games: Game[];
-  teamAbbreviations: { [key: string]: string };
-  currentWeek: number;
-}
-
-function InsightsBeta({ picks, users, games, teamAbbreviations, currentWeek }: InsightsBetaProps) {
-  const [spreadViewMode, setSpreadViewMode] = useState<'absolute' | 'signed'>('absolute');
-  const [selectedWeeks, setSelectedWeeks] = useState<number[] | 'all'>('all');
-  
-  // Helper function to get all graded team picks (filtered by selected weeks)
-  const getAllGradedPicks = () => {
-    // Regular-season picks only; playoff formats (props, O/U) would skew spread analytics
-    const regularSeasonPicks = picks.filter(userPick => !isPlayoffWeek(userPick.week));
-    const filteredPicks = selectedWeeks === 'all'
-      ? regularSeasonPicks
-      : regularSeasonPicks.filter(userPick => selectedWeeks.includes(userPick.week));
-
-    // Graded picks including pushes — pushes stay in every denominator
-    return filteredPicks.flatMap(userPick =>
-      userPick.picks.filter(teamPick =>
-        teamPick.result === 'W' || teamPick.result === 'L' || teamPick.result === 'P' ||
-        teamPick.correct === true || teamPick.correct === false
-      )
-    );
-  };
-
-  // Get available weeks for the selector (regular season only)
-  const getAvailableWeeks = () => {
-    const weeks = Array.from(new Set(
-      picks.filter(pick => !isPlayoffWeek(pick.week)).map(pick => pick.week)
-    )).sort((a, b) => a - b);
-    return weeks;
-  };
-
-  // Toggle week selection
-  const toggleWeekSelection = (week: number) => {
-    if (selectedWeeks === 'all') {
-      setSelectedWeeks([week]);
-    } else {
-      const isSelected = selectedWeeks.includes(week);
-      if (isSelected) {
-        const newSelection = selectedWeeks.filter(w => w !== week);
-        setSelectedWeeks(newSelection.length === 0 ? 'all' : newSelection);
-      } else {
-        setSelectedWeeks([...selectedWeeks, week]);
-      }
-    }
-  };
-
-  // Helper function to find game data for a pick
-  const getGameForPick = (teamPick: TeamPick) => {
-    return games.find(game => 
-      game.id === teamPick.gameId || 
-      game.away === teamPick.team || 
-      game.home === teamPick.team
-    );
-  };
-
-  const gradedPicks = getAllGradedPicks();
-
-  // Underdog vs Favorite Analytics
-  const getUnderdogFavoriteAnalytics = () => {
-    let favoriteStats = { picked: 0, correct: 0 };
-    let underdogStats = { picked: 0, correct: 0 };
-
-    gradedPicks.forEach(pick => {
-      const spread = pick.spread;
-      if (spread < 0) { // Negative spread = favorite
-        favoriteStats.picked++;
-        if (pick.correct) favoriteStats.correct++;
-      } else { // Positive spread = underdog
-        underdogStats.picked++;
-        if (pick.correct) underdogStats.correct++;
-      }
-    });
-
-    return {
-      favorites: {
-        ...favoriteStats,
-        percentage: favoriteStats.picked > 0 ? Math.round((favoriteStats.correct / favoriteStats.picked) * 100) : 0
-      },
-      underdogs: {
-        ...underdogStats,
-        percentage: underdogStats.picked > 0 ? Math.round((underdogStats.correct / underdogStats.picked) * 100) : 0
-      }
-    };
-  };
-
-  // Home vs Away Analytics
-  const getHomeAwayAnalytics = () => {
-    let homeStats = { picked: 0, correct: 0 };
-    let awayStats = { picked: 0, correct: 0 };
-
-    gradedPicks.forEach(pick => {
-      const game = getGameForPick(pick);
-      if (!game) return;
-
-      if (game.home === pick.team) {
-        homeStats.picked++;
-        if (pick.correct) homeStats.correct++;
-      } else {
-        awayStats.picked++;
-        if (pick.correct) awayStats.correct++;
-      }
-    });
-
-    return {
-      home: {
-        ...homeStats,
-        percentage: homeStats.picked > 0 ? Math.round((homeStats.correct / homeStats.picked) * 100) : 0
-      },
-      away: {
-        ...awayStats,
-        percentage: awayStats.picked > 0 ? Math.round((awayStats.correct / awayStats.picked) * 100) : 0
-      }
-    };
-  };
-
-  // Spread Range Analytics
-  const getSpreadAnalytics = () => {
-    const spreadRanges: { [key: string]: { picked: number; correct: number } } = {};
-    
-    gradedPicks.forEach(pick => {
-      const spread = pick.spread;
-      let range;
-      
-      if (spreadViewMode === 'absolute') {
-        const absSpread = Math.abs(spread);
-        if (absSpread <= 3) range = '0-3 pts';
-        else if (absSpread <= 6) range = '3.5-6 pts';
-        else if (absSpread <= 10) range = '6.5-10 pts';
-        else range = '10.5+ pts';
-      } else {
-        // Signed mode - separate favorites and underdogs
-        const absSpread = Math.abs(spread);
-        const isFavorite = spread < 0;
-        const prefix = isFavorite ? 'Favorite' : 'Underdog';
-        
-        if (absSpread <= 3) range = `${prefix} 0-3 pts`;
-        else if (absSpread <= 6) range = `${prefix} 3.5-6 pts`;
-        else if (absSpread <= 10) range = `${prefix} 6.5-10 pts`;
-        else range = `${prefix} 10.5+ pts`;
-      }
-
-      if (!spreadRanges[range]) {
-        spreadRanges[range] = { picked: 0, correct: 0 };
-      }
-      spreadRanges[range].picked++;
-      if (pick.correct) spreadRanges[range].correct++;
-    });
-
-    const entries = Object.entries(spreadRanges)
-      .map(([range, stats]) => ({
-        range,
-        picked: stats.picked,
-        correct: stats.correct,
-        percentage: Math.round((stats.correct / stats.picked) * 100)
-      }));
-
-    // Sort based on view mode
-    if (spreadViewMode === 'absolute') {
-      const order = ['0-3 pts', '3.5-6 pts', '6.5-10 pts', '10.5+ pts'];
-      return entries.sort((a, b) => order.indexOf(a.range) - order.indexOf(b.range));
-    } else {
-      // Sort like histogram: high underdogs at top, then high favorites at bottom
-      const order = [
-        'Underdog 10.5+ pts', 'Underdog 6.5-10 pts', 'Underdog 3.5-6 pts', 'Underdog 0-3 pts',
-        'Favorite 0-3 pts', 'Favorite 3.5-6 pts', 'Favorite 6.5-10 pts', 'Favorite 10.5+ pts'
-      ];
-      return entries.sort((a, b) => order.indexOf(a.range) - order.indexOf(b.range));
-    }
-  };
-
-  // Most Popular Teams Analytics
-  const getMostPopularTeams = () => {
-    const teamStats: { [key: string]: { picked: number; correct: number } } = {};
-    
-    gradedPicks.forEach(pick => {
-      const team = pick.team;
-      if (!teamStats[team]) {
-        teamStats[team] = { picked: 0, correct: 0 };
-      }
-      teamStats[team].picked++;
-      if (pick.correct) teamStats[team].correct++;
-    });
-
-    const allTeams = Object.entries(teamStats)
-      .map(([team, stats]) => ({
-        team,
-        picked: stats.picked,
-        correct: stats.correct,
-        percentage: Math.round((stats.correct / stats.picked) * 100)
-      }))
-      .sort((a, b) => b.picked - a.picked); // Sort by most picked
-    
-    return {
-      totalTeams: Object.keys(teamStats).length,
-      topTeams: allTeams
-    };
-  };
-
-  const underdogFavorite = getUnderdogFavoriteAnalytics();
-  const homeAway = getHomeAwayAnalytics();
-  const spreadAnalytics = getSpreadAnalytics();
-  const mostPopularTeamsData = getMostPopularTeams();
-
-  // Find the absolute maximum across ALL categories for consistent scaling
-  const allData = [
-    underdogFavorite.favorites,
-    underdogFavorite.underdogs,
-    homeAway.home,
-    homeAway.away,
-    ...spreadAnalytics,
-    ...mostPopularTeamsData.topTeams
-  ];
-  const globalMaxVolume = Math.max(...allData.map(d => d.picked));
-
-  const BarChart = ({ label, data }: { 
-    label: string; 
-    data: { picked: number; correct: number; percentage: number };
-  }) => {
-    const barWidth = globalMaxVolume > 0 ? (data.picked / globalMaxVolume) * 100 : 0;
-    const correctWidth = data.picked > 0 ? (data.correct / data.picked) * 100 : 0;
-
-    return (
-      <div className="flex items-center py-2">
-        {/* Table-like columns */}
-        <div className="font-semibold text-base text-gray-900 w-32 text-left">{label}</div>
-        <div className="text-sm text-gray-600 w-16 text-center">{data.correct}</div>
-        <div className="text-sm text-gray-600 w-16 text-center">{data.picked}</div>
-        <div className="text-sm font-semibold text-gray-900 w-20 text-center">{data.percentage}%</div>
-        
-        {/* Bar Chart */}
-        <div className="flex-1 ml-6">
-          <div 
-            className="h-6 bg-gray-300 rounded relative"
-            style={{ width: `${barWidth}%`, minWidth: '80px' }}
-          >
-            <div 
-              className="h-full bg-green-500 rounded transition-all duration-500"
-              style={{ width: `${correctWidth}%` }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-8">
-      {/* Week Filter */}
-      <div className="p-4 bg-gray-50 rounded-lg">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-sm font-medium text-gray-700">Filter by Week:</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSelectedWeeks('all')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              selectedWeeks === 'all'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            All
-          </button>
-          {getAvailableWeeks().map(week => (
-            <button
-              key={week}
-              onClick={() => toggleWeekSelection(week)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                selectedWeeks !== 'all' && selectedWeeks.includes(week)
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Week {week}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Overview Stats KPI Tiles */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-blue-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-blue-600">{gradedPicks.length}</div>
-          <div className="text-sm text-blue-700">Total Picks Analyzed</div>
-        </div>
-        <div className="bg-green-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-green-600">{gradedPicks.filter(p => p.correct).length}</div>
-          <div className="text-sm text-green-700">Correct Picks</div>
-        </div>
-        <div className="bg-red-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-red-600">{gradedPicks.filter(p => !p.correct).length}</div>
-          <div className="text-sm text-red-700">Incorrect Picks</div>
-        </div>
-        <div className="bg-purple-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-purple-600">{mostPopularTeamsData.totalTeams}</div>
-          <div className="text-sm text-purple-700">Teams Picked</div>
-        </div>
-      </div>
-
-      {/* Favorites vs Underdogs */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">🎯 Favorites vs Underdogs</h3>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          {/* Header Row */}
-          <div className="flex items-center py-2 mb-2 border-b border-gray-100">
-            <div className="text-xs font-medium text-gray-400 w-32 text-left">CATEGORY</div>
-            <div className="text-xs font-medium text-gray-400 w-16 text-center">CORRECT</div>
-            <div className="text-xs font-medium text-gray-400 w-16 text-center">TOTAL</div>
-            <div className="text-xs font-medium text-gray-400 w-20 text-center">SUCCESS</div>
-            <div className="text-xs font-medium text-gray-400 flex-1 ml-6">VOLUME</div>
-          </div>
-          <div className="space-y-1">
-            <BarChart 
-              label="Favorites (-)" 
-              data={underdogFavorite.favorites}
-            />
-            <BarChart 
-              label="Underdogs (+)" 
-              data={underdogFavorite.underdogs}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Home vs Away */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">🏠 Home vs Away Teams</h3>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          {/* Header Row */}
-          <div className="flex items-center py-2 mb-2 border-b border-gray-100">
-            <div className="text-xs font-medium text-gray-400 w-32 text-left">CATEGORY</div>
-            <div className="text-xs font-medium text-gray-400 w-16 text-center">CORRECT</div>
-            <div className="text-xs font-medium text-gray-400 w-16 text-center">TOTAL</div>
-            <div className="text-xs font-medium text-gray-400 w-20 text-center">SUCCESS</div>
-            <div className="text-xs font-medium text-gray-400 flex-1 ml-6">VOLUME</div>
-          </div>
-          <div className="space-y-1">
-            <BarChart 
-              label="Home Teams" 
-              data={homeAway.home}
-            />
-            <BarChart 
-              label="Away Teams" 
-              data={homeAway.away}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Spread Ranges */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">📊 Performance by Spread Size</h3>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600">Absolute Spread</span>
-            <button
-              onClick={() => setSpreadViewMode(spreadViewMode === 'absolute' ? 'signed' : 'absolute')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                spreadViewMode === 'signed' ? 'bg-blue-600' : 'bg-gray-200'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  spreadViewMode === 'signed' ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-            <span className="text-sm text-gray-600">By Side</span>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          {/* Header Row */}
-          <div className="flex items-center py-2 mb-2 border-b border-gray-100">
-            <div className="text-xs font-medium text-gray-400 w-32 text-left">CATEGORY</div>
-            <div className="text-xs font-medium text-gray-400 w-16 text-center">CORRECT</div>
-            <div className="text-xs font-medium text-gray-400 w-16 text-center">TOTAL</div>
-            <div className="text-xs font-medium text-gray-400 w-20 text-center">SUCCESS</div>
-            <div className="text-xs font-medium text-gray-400 flex-1 ml-6">VOLUME</div>
-          </div>
-          <div className="space-y-1">
-            {spreadAnalytics.map((range, index) => {
-              // Add section headers and separator for signed mode
-              const showUnderdogHeader = spreadViewMode === 'signed' && index === 0;
-              const showFavoriteHeader = spreadViewMode === 'signed' && 
-                index === spreadAnalytics.findIndex(r => r.range.startsWith('Favorite'));
-              
-              // Clean label - remove "Favorite"/"Underdog" prefix
-              const cleanLabel = spreadViewMode === 'signed' 
-                ? range.range.replace(/^(Favorite|Underdog) /, '')
-                : range.range;
-              
-              return (
-                <div key={range.range}>
-                  {showUnderdogHeader && (
-                    <div className="mb-3">
-                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">UNDERDOGS</div>
-                    </div>
-                  )}
-                  {showFavoriteHeader && (
-                    <div className="py-4">
-                      <div className="border-t border-gray-300 mb-4"></div>
-                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">FAVORITES</div>
-                    </div>
-                  )}
-                  <BarChart 
-                    label={cleanLabel} 
-                    data={range}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Most Popular Teams */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">⭐ Most Popular Teams</h3>
-        <div className="bg-white rounded-lg shadow-md">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Times Picked</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Correct</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Success Rate</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {mostPopularTeamsData.topTeams.map(team => (
-                  <tr key={team.team}>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      <div className="flex items-center">
-                        <img 
-                          src={`https://a.espncdn.com/i/teamlogos/nfl/500/${teamAbbreviations[team.team] || 'nfl'}.png`}
-                          alt={`${team.team} logo`}
-                          className="w-8 h-8 mr-3"
-                          onError={(e) => {
-                            e.currentTarget.src = 'https://a.espncdn.com/i/teamlogos/nfl/500/nfl.png';
-                          }}
-                        />
-                        {team.team}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {team.picked}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {team.correct}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {team.percentage}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-        <h4 className="font-semibold text-gray-900 mb-2">How to Read the Charts:</h4>
-        <div className="text-sm text-gray-700 space-y-1">
-          <div>• <strong>Bar length</strong> = Total volume relative to highest category (max: {globalMaxVolume} picks)</div>
-          <div>• <strong>Green fill</strong> = Portion that were correct</div>
-          <div>• <strong>Numbers in bar</strong> = Correct/Total fraction and success percentage</div>
-          <div>• All bars use the same scale for true volume comparison</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface NFLTrendsProps {
-  games: Game[];
-  teamAbbreviations: { [key: string]: string };
-  currentWeek: number;
-}
-
-function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
-  const [selectedWeeks, setSelectedWeeks] = useState<number[] | 'all'>('all');
-  const [resultsData, setResultsData] = useState<any[]>([]);
-
-  useEffect(() => {
-    loadResultsData();
-  }, [currentWeek]);
-
-  const loadResultsData = async () => {
-    try {
-      const allResults: any[] = [];
-      
-      // Try to load results for weeks 1-18 (current week - 1 since we don't have results for current week yet)
-      const maxWeekToLoad = currentWeek > 1 ? currentWeek - 1 : 1;
-      let loadedWeeks = 0;
-      
-      for (let week = 1; week <= maxWeekToLoad; week++) {
-        try {
-          const weekResponse = await fetch(`${process.env.PUBLIC_URL}/results/nfl_results_week${week}.csv`);
-          if (!weekResponse.ok) {
-            console.log(`Week ${week} results not available (HTTP ${weekResponse.status})`);
-            continue;
-          }
-          const weekText = await weekResponse.text();
-
-          await new Promise<void>((resolve, reject) => {
-            Papa.parse(weekText, {
-              header: true,
-              complete: (results) => {
-                const weekData = results.data
-                  .filter((row: any) => row.away && row.home) // Filter out empty rows
-                  .map((row: any) => ({ ...row, week }));
-                allResults.push(...weekData);
-                loadedWeeks++;
-                resolve();
-              },
-              error: (error: any) => reject(error) // never leave the promise hanging
-            });
-          });
-        } catch (e) {
-          console.log(`Week ${week} results not available`);
-        }
-      }
-      
-      setResultsData(allResults);
-      console.log(`Loaded results for ${loadedWeeks} weeks`);
-    } catch (error) {
-      console.error('Error loading results data:', error);
-    }
-  };
-
-  // Get available weeks based on results data
-  const getAvailableWeeks = () => {
-    const weeks = Array.from(new Set(resultsData.map(game => game.week))).sort((a, b) => a - b);
-    return weeks;
-  };
-
-  // Toggle week selection
-  const toggleWeekSelection = (week: number) => {
-    if (selectedWeeks === 'all') {
-      setSelectedWeeks([week]);
-    } else {
-      const isSelected = selectedWeeks.includes(week);
-      if (isSelected) {
-        const newSelection = selectedWeeks.filter(w => w !== week);
-        setSelectedWeeks(newSelection.length === 0 ? 'all' : newSelection);
-      } else {
-        setSelectedWeeks([...selectedWeeks, week]);
-      }
-    }
-  };
-
-  // Base filtered results (only by weeks)
-  const getBaseFilteredResults = () => {
-    return selectedWeeks === 'all' 
-      ? resultsData 
-      : resultsData.filter(game => selectedWeeks.includes(game.week));
-  };
-
-  // Get base results without any filtering
-  const getResultsData = () => {
-    return getBaseFilteredResults();
-  };
-
-  // Home vs Away ATS Analysis
-  const getHomeAwayATS = () => {
-    const results = getResultsData();
-    let homeWins = 0, awayWins = 0;
-    const totalGames = results.filter(game => game.away && game.home).length;
-    
-    results.forEach(game => {
-      // Handle both column formats
-      const homeWon = game.home_ats_result === 'W';
-      const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
-      
-      if (homeWon) homeWins++;
-      if (awayWon) awayWins++;
-    });
-    
-    return {
-      home: { 
-        picked: totalGames, 
-        correct: homeWins, 
-        percentage: totalGames > 0 ? Math.round((homeWins / totalGames) * 100) : 0 
-      },
-      away: { 
-        picked: totalGames, 
-        correct: awayWins, 
-        percentage: totalGames > 0 ? Math.round((awayWins / totalGames) * 100) : 0 
-      }
-    };
-  };
-
-  // Favorite vs Underdog ATS Analysis
-  const getFavoriteUnderdogATS = () => {
-    const results = getResultsData();
-    let favoriteWins = 0, underdogWins = 0;
-    const totalGames = results.filter(game => game.away && game.home).length;
-    
-    results.forEach(game => {
-      // Handle both column formats for spreads
-      const homeSpread = parseFloat(game.home_spread) || 0;
-      const awaySpread = parseFloat(game.spread_away || game.away_spread) || 0;
-      
-      // Determine which team was favored (negative spread = favorite)
-      if (homeSpread < 0) {
-        // Home team favored
-        const homeWon = game.home_ats_result === 'W';
-        const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
-        if (homeWon) favoriteWins++;
-        else if (awayWon) underdogWins++;
-      } else if (awaySpread < 0) {
-        // Away team favored
-        const homeWon = game.home_ats_result === 'W';
-        const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
-        if (awayWon) favoriteWins++;
-        else if (homeWon) underdogWins++;
-      }
-    });
-    
-    return {
-      favorites: { 
-        picked: totalGames, 
-        correct: favoriteWins, 
-        percentage: totalGames > 0 ? Math.round((favoriteWins / totalGames) * 100) : 0 
-      },
-      underdogs: { 
-        picked: totalGames, 
-        correct: underdogWins, 
-        percentage: totalGames > 0 ? Math.round((underdogWins / totalGames) * 100) : 0 
-      }
-    };
-  };
-
-  // Spread Range Analysis (structured like Insights tab)
-  const getSpreadRangeAnalysis = () => {
-    const results = getResultsData();
-    
-    const ranges: { [key: string]: { picked: number; correct: number } } = {
-      'Underdog 1-3': { picked: 0, correct: 0 },
-      'Underdog 3.5-6.5': { picked: 0, correct: 0 },
-      'Underdog 7-10': { picked: 0, correct: 0 },
-      'Underdog 10.5+': { picked: 0, correct: 0 },
-      'Favorite 1-3': { picked: 0, correct: 0 },
-      'Favorite 3.5-6.5': { picked: 0, correct: 0 },
-      'Favorite 7-10': { picked: 0, correct: 0 },
-      'Favorite 10.5+': { picked: 0, correct: 0 }
-    };
-
-    results.forEach(game => {
-      // Handle both column formats for spreads
-      const homeSpread = parseFloat(game.home_spread) || 0;
-      const awaySpread = parseFloat(game.spread_away || game.away_spread) || 0;
-      const spread = Math.abs(homeSpread); // Use absolute value for range categorization
-      
-      let spreadCategory = '';
-      if (spread >= 1 && spread <= 3) spreadCategory = '1-3';
-      else if (spread >= 3.5 && spread <= 6.5) spreadCategory = '3.5-6.5';
-      else if (spread >= 7 && spread <= 10) spreadCategory = '7-10';
-      else if (spread >= 10.5) spreadCategory = '10.5+';
-      
-      if (spreadCategory) {
-        // Handle both column formats for results
-        const homeWon = game.home_ats_result === 'W';
-        const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
-        
-        // Determine favorite (negative spread) vs underdog (positive spread)
-        if (homeSpread < 0) {
-          // Home team is favorite, away team is underdog
-          const favoriteKey = `Favorite ${spreadCategory}`;
-          const underdogKey = `Underdog ${spreadCategory}`;
-          
-          if (ranges[favoriteKey]) {
-            ranges[favoriteKey].picked++;
-            if (homeWon) ranges[favoriteKey].correct++;
-          }
-          if (ranges[underdogKey]) {
-            ranges[underdogKey].picked++;
-            if (awayWon) ranges[underdogKey].correct++;
-          }
-        } else if (awaySpread < 0) {
-          // Away team is favorite, home team is underdog
-          const favoriteKey = `Favorite ${spreadCategory}`;
-          const underdogKey = `Underdog ${spreadCategory}`;
-          
-          if (ranges[favoriteKey]) {
-            ranges[favoriteKey].picked++;
-            if (awayWon) ranges[favoriteKey].correct++;
-          }
-          if (ranges[underdogKey]) {
-            ranges[underdogKey].picked++;
-            if (homeWon) ranges[underdogKey].correct++;
-          }
-        }
-      }
-    });
-
-    return Object.entries(ranges).map(([range, stats]) => ({
-      range,
-      picked: stats.picked,
-      correct: stats.correct,
-      percentage: stats.picked > 0 ? Math.round((stats.correct / stats.picked) * 100) : 0
-    }));
-  };
-
-  const homeAwayStats = getHomeAwayATS();
-  const favoriteUnderdogStats = getFavoriteUnderdogATS();
-  const spreadRangeStats = getSpreadRangeAnalysis();
-
-  // Calculate global max volume using unfiltered data for consistent scaling
-  const globalMaxVolume = Math.max(
-    homeAwayStats.home.picked,
-    homeAwayStats.away.picked,
-    favoriteUnderdogStats.favorites.picked,
-    favoriteUnderdogStats.underdogs.picked,
-    ...spreadRangeStats.map(s => s.picked)
-  );
-
-  // Chart component
-  const AnalyticsChart = ({ 
-    data, 
-    label, 
-    maxVolume
-  }: { 
-    data: { picked: number; correct: number; percentage: number }, 
-    label: string,
-    maxVolume: number
-  }) => {
-    const barWidth = maxVolume > 0 ? (data.picked / maxVolume) * 100 : 0;
-    const correctWidth = data.picked > 0 ? (data.correct / data.picked) * 100 : 0;
-
-    return (
-      <div className="flex items-center py-2">
-        <div className="font-semibold text-base w-32 text-left text-gray-900">{label}</div>
-        <div className="text-sm w-16 text-center text-gray-600">{data.correct}</div>
-        <div className="text-sm w-16 text-center text-gray-600">{data.picked}</div>
-        <div className="text-sm font-semibold w-20 text-center text-gray-900">{data.percentage}%</div>
-        
-        <div className="flex-1 ml-6 flex items-center">
-          <div 
-            className="h-6 rounded relative bg-gray-300"
-            style={{ width: `${barWidth}%`, minWidth: '80px' }}
-          >
-            <div 
-              className="h-full rounded bg-green-500"
-              style={{ width: `${correctWidth}%` }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-
-  // Week-over-week trending analysis
-  const getTrendingData = () => {
-    const weeklyStats: { [week: number]: any } = {};
-    
-    // Calculate stats for each week
-    getAvailableWeeks().forEach(week => {
-      const weekData = resultsData.filter(game => game.week === week && game.away && game.home);
-      
-      // Home/Away stats
-      let homeWins = 0, awayWins = 0;
-      let favoriteWins = 0, underdogWins = 0;
-      
-      weekData.forEach(game => {
-        // Handle both column formats
-        const homeWon = game.home_ats_result === 'W';
-        const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
-        
-        if (homeWon) homeWins++;
-        if (awayWon) awayWins++;
-        
-        // Handle both column formats for spreads
-        const homeSpread = parseFloat(game.home_spread) || 0;
-        const awaySpread = parseFloat(game.spread_away || game.away_spread) || 0;
-        
-        if (homeSpread < 0) {
-          if (homeWon) favoriteWins++;
-          else if (awayWon) underdogWins++;
-        } else if (awaySpread < 0) {
-          if (awayWon) favoriteWins++;
-          else if (homeWon) underdogWins++;
-        }
-      });
-      
-      const totalGames = weekData.length;
-      
-      weeklyStats[week] = {
-        homePercentage: totalGames > 0 ? Math.round((homeWins / totalGames) * 100) : 0,
-        awayPercentage: totalGames > 0 ? Math.round((awayWins / totalGames) * 100) : 0,
-        favoritePercentage: totalGames > 0 ? Math.round((favoriteWins / totalGames) * 100) : 0,
-        underdogPercentage: totalGames > 0 ? Math.round((underdogWins / totalGames) * 100) : 0,
-        totalGames
-      };
-    });
-    
-    return weeklyStats;
-  };
-
-
-  const trendingData = getTrendingData();
-
-  return (
-    <div className="space-y-8">
-      {/* Filters */}
-      <div className="p-4 bg-gray-50 rounded-lg space-y-4">
-        {/* Week Filter */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-medium text-gray-700">Filter by Week:</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelectedWeeks('all')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                selectedWeeks === 'all'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              All
-            </button>
-            {getAvailableWeeks().map(week => (
-              <button
-                key={week}
-                onClick={() => toggleWeekSelection(week)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  selectedWeeks !== 'all' && selectedWeeks.includes(week)
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                Week {week}
-              </button>
-            ))}
-          </div>
-        </div>
-
-      </div>
-
-
-      {/* Home vs Away Performance */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-xl font-semibold text-gray-900 mb-6">🏟️ Home vs Away ATS Performance</h3>
-        
-        {/* Table Headers */}
-        <div className="flex items-center py-2 border-b border-gray-200 mb-4">
-          <div className="font-semibold text-sm text-gray-600 w-32 text-left">Category</div>
-          <div className="font-semibold text-sm text-gray-600 w-16 text-center">Wins</div>
-          <div className="font-semibold text-sm text-gray-600 w-16 text-center">Total</div>
-          <div className="font-semibold text-sm text-gray-600 w-20 text-center">Rate</div>
-          <div className="font-semibold text-sm text-gray-600 flex-1 ml-6">Performance Distribution</div>
-        </div>
-
-        <AnalyticsChart 
-          data={homeAwayStats.home} 
-          label="Home Teams" 
-          maxVolume={globalMaxVolume}
-        />
-        <AnalyticsChart 
-          data={homeAwayStats.away} 
-          label="Away Teams" 
-          maxVolume={globalMaxVolume}
-        />
-      </div>
-
-      {/* Favorites vs Underdogs */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-xl font-semibold text-gray-900 mb-6">⭐ Favorites vs Underdogs ATS</h3>
-        
-        {/* Table Headers */}
-        <div className="flex items-center py-2 border-b border-gray-200 mb-4">
-          <div className="font-semibold text-sm text-gray-600 w-32 text-left">Category</div>
-          <div className="font-semibold text-sm text-gray-600 w-16 text-center">Wins</div>
-          <div className="font-semibold text-sm text-gray-600 w-16 text-center">Total</div>
-          <div className="font-semibold text-sm text-gray-600 w-20 text-center">Rate</div>
-          <div className="font-semibold text-sm text-gray-600 flex-1 ml-6">Performance Distribution</div>
-        </div>
-
-        <AnalyticsChart 
-          data={favoriteUnderdogStats.favorites} 
-          label="Favorites" 
-          maxVolume={globalMaxVolume}
-        />
-        <AnalyticsChart 
-          data={favoriteUnderdogStats.underdogs} 
-          label="Underdogs" 
-          maxVolume={globalMaxVolume}
-        />
-      </div>
-
-      {/* Spread Range Analysis */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Performance by Spread Size</h3>
-        
-        {/* Header Row */}
-        <div className="flex items-center py-2 mb-2 border-b border-gray-100">
-          <div className="text-xs font-medium text-gray-400 w-32 text-left">CATEGORY</div>
-          <div className="text-xs font-medium text-gray-400 w-16 text-center">CORRECT</div>
-          <div className="text-xs font-medium text-gray-400 w-16 text-center">TOTAL</div>
-          <div className="text-xs font-medium text-gray-400 w-20 text-center">SUCCESS</div>
-          <div className="text-xs font-medium text-gray-400 flex-1 ml-6">VOLUME</div>
-        </div>
-        <div className="space-y-1">
-          {spreadRangeStats.map((range, index) => {
-            // Add section headers and separator
-            const showUnderdogHeader = index === 0;
-            const showFavoriteHeader = index === spreadRangeStats.findIndex(r => r.range.startsWith('Favorite'));
-            
-            // Clean label - remove "Favorite"/"Underdog" prefix
-            const cleanLabel = range.range.replace(/^(Favorite|Underdog) /, '');
-            
-            return (
-              <div key={range.range}>
-                {showUnderdogHeader && (
-                  <div className="mb-3">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">UNDERDOGS</div>
-                  </div>
-                )}
-                {showFavoriteHeader && (
-                  <div className="mb-3 mt-6">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">FAVORITES</div>
-                  </div>
-                )}
-                <AnalyticsChart 
-                  data={range} 
-                  label={cleanLabel} 
-                  maxVolume={globalMaxVolume}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-        <h4 className="font-semibold text-gray-900 mb-2">How to Read the Charts:</h4>
-        <div className="text-sm text-gray-700 space-y-1">
-          <div>• <strong>Bar length</strong> = Total volume relative to highest category</div>
-          <div>• <strong>Green fill</strong> = Portion that covered the spread</div>
-          <div>• Data from actual NFL game results and betting lines</div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 
 export default App;
