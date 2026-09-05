@@ -188,11 +188,12 @@ export default function StandingsScreen({
     <div>
       <h2 className="sl-sec">Standings</h2>
       <div
-        className="sl-card"
-        style={{
-          padding: '4px 12px',
-          ...(archive ? { width: 'fit-content', maxWidth: '100%' } : {}),
-        }}
+        className={archive ? '' : 'sl-card'}
+        style={
+          archive
+            ? { width: 'fit-content', maxWidth: '100%', margin: '0 auto' }
+            : { padding: '4px 12px' }
+        }
       >
         <CfTable
           sortable
@@ -219,7 +220,7 @@ export default function StandingsScreen({
       </div>
 
       <h2 className="sl-sec sl-breakout">Weekly performance</h2>
-      <div className="sl-card sl-breakout" style={{ padding: '4px 12px' }}>
+      <div className="sl-card sl-breakout sl-tight" style={{ padding: '4px 12px' }}>
         <CfTable
           columns={heatColumns}
           rows={heatRows}
@@ -227,8 +228,8 @@ export default function StandingsScreen({
         />
       </div>
 
-      <h2 className="sl-sec">Cumulative win %</h2>
-      <div className="sl-card" style={{ padding: 14 }}>
+      <h2 className={`sl-sec${archive ? ' sl-breakout' : ''}`}>Cumulative win %</h2>
+      <div className={`sl-card${archive ? ' sl-breakout' : ''}`} style={{ padding: 14 }}>
         <CfChart
           create={(el, config) => ChartFactory.Line.createMulti(el, config)}
           config={{
@@ -247,8 +248,8 @@ export default function StandingsScreen({
         />
       </div>
 
-      <h2 className="sl-sec">Season matrix</h2>
-      <div className="sl-card" style={{ padding: '4px 12px' }}>
+      <h2 className={`sl-sec${archive ? ' sl-breakout' : ''}`}>Season matrix</h2>
+      <div className={`sl-card${archive ? ' sl-breakout' : ''}`} style={{ padding: '4px 12px' }}>
         <CfTable
           columns={matrixColumns}
           rows={matrixRows}
