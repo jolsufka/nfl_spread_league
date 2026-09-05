@@ -465,7 +465,7 @@ function App() {
           padding: '0 14px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 0 12px' }}>
           <div className="disp" style={{ fontSize: '1.55rem', fontWeight: 700, lineHeight: 1 }}>
             Spread League
             <small
@@ -518,7 +518,7 @@ function App() {
             </span>
           ) : null}
         </div>
-        <nav className="sl-topnav" style={{ display: 'flex', gap: 4, paddingBottom: 8 }}>
+        <nav className="sl-topnav" style={{ display: 'flex', gap: 6, paddingBottom: 12 }}>
           {navButtons('top')}
         </nav>
       </header>
@@ -618,6 +618,7 @@ function App() {
             teamAbbreviations={teamAbbreviations}
             selectedUser={selectedUser}
             season={viewSeason}
+            archive={!isCurrentSeason}
           />
           {isCurrentSeason && mode === 'playoffs' && (
             <>
