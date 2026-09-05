@@ -218,8 +218,8 @@ export default function StandingsScreen({
         />
       </div>
 
-      <h2 className="sl-sec">Weekly performance</h2>
-      <div className="sl-card" style={{ padding: '4px 12px' }}>
+      <h2 className="sl-sec sl-breakout">Weekly performance</h2>
+      <div className="sl-card sl-breakout" style={{ padding: '4px 12px' }}>
         <CfTable
           columns={heatColumns}
           rows={heatRows}

@@ -453,7 +453,7 @@ function App() {
     ));
 
   return (
-    <div style={{ maxWidth: 1140, margin: '0 auto', padding: '0 14px' }}>
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 14px' }}>
       <header
         style={{
           position: 'sticky',
