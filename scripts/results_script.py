@@ -1,310 +1,287 @@
-# nfl_week_results.py
-import os, sys, argparse, datetime as dt, pytz, requests, pandas as pd
-from supabase_integration import extract_picks_for_week, save_picks_to_csv, update_pick_results, get_leaderboard
+#!/usr/bin/env python3
+"""Grade a completed NFL week: fetch final scores, compute ATS results,
+grade every pick, and write results to Supabase and the app's data files.
 
-SPORT = "americanfootball_nfl"
-ODDS_FORMAT = "american"
+Scores come from ESPN's scoreboard API, which is addressable by season +
+week — unlike The Odds API's 3-day window, a late run can never lose games.
 
-def iso_z(dt_aware):
-    """Convert timezone-aware datetime to UTC ISO format."""
-    return dt_aware.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+Exit codes: 0 success; 2 bad inputs; 3 games not final; 4 ungraded picks;
+5 Supabase update failed. Any nonzero exit means DO NOT trust the outputs.
+"""
+import argparse
+import sys
+import time
 
-def week_window_from_weeknum(week1_start_et_str: str, week: int):
-    """Calculate week window from week 1 start and week number."""
-    tz = pytz.timezone("America/New_York")
-    w1 = tz.localize(dt.datetime.strptime(week1_start_et_str, "%Y-%m-%d %H:%M"))
-    start = w1 + dt.timedelta(days=7*(week-1))
-    end = start + dt.timedelta(days=7, seconds=-1)
-    return start, end
+import pandas as pd
+import requests
 
-def fetch_scores(api_key: str, days_from: int = 3):
-    """Fetch completed game scores from The Odds API."""
-    url = f"https://api.the-odds-api.com/v4/sports/{SPORT}/scores"
-    params = {
-        "apiKey": api_key,
-        "daysFrom": days_from,
-        "dateFormat": "iso"
-    }
-    r = requests.get(url, params=params, timeout=25)
-    r.raise_for_status()
-    return r.json()
+from season import (
+    load_season_config,
+    current_week,
+    lines_csv_paths,
+    results_csv_paths,
+    PICKS_DIR,
+    PICK_RESULTS_DIR,
+)
+from supabase_integration import (
+    extract_picks_for_week,
+    save_picks_to_csv,
+    update_pick_results,
+    get_leaderboard,
+)
 
-def parse_game_results(scores_data):
-    """Parse scores data into a structured DataFrame."""
-    games = []
-    tz = pytz.timezone("America/New_York")
-    
-    for game in scores_data:
-        if not game.get("completed", False):
-            continue  # Skip incomplete games
-            
-        scores = game.get("scores", [])
-        if len(scores) != 2:
-            continue  # Need exactly 2 team scores
-            
-        # Find home and away scores
-        home_score = None
-        away_score = None
-        
-        for score in scores:
-            if score["name"] == game["home_team"]:
-                home_score = score["score"]
-            elif score["name"] == game["away_team"]:
-                away_score = score["score"]
-        
-        if home_score is None or away_score is None:
-            continue
-            
-        # Convert commence time to ET
-        commence_utc = dt.datetime.fromisoformat(game["commence_time"].replace('Z', '+00:00'))
-        kickoff_et = commence_utc.astimezone(tz)
-        
-        games.append({
-            "game_id": game["id"],
-            "kickoff_et": kickoff_et,
-            "home": game["home_team"],
-            "away": game["away_team"],
-            "home_score": int(home_score),
-            "away_score": int(away_score),
-            "completed": True
+ESPN_SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
+
+
+def fetch_espn_week(week: int, year: int, seasontype: int = 2, retries: int = 3) -> list:
+    """All events for a season week. seasontype 2 = regular season, 3 = postseason."""
+    params = {"seasontype": seasontype, "week": week, "dates": year}
+    for attempt in range(retries):
+        try:
+            r = requests.get(ESPN_SCOREBOARD, params=params, timeout=30)
+            r.raise_for_status()
+            return r.json().get("events", [])
+        except requests.RequestException as e:
+            if attempt == retries - 1:
+                raise
+            wait = 5 * (attempt + 1)
+            print(f"ESPN fetch failed ({e}); retrying in {wait}s")
+            time.sleep(wait)
+    return []
+
+
+def espn_scores(events: list) -> pd.DataFrame:
+    rows = []
+    for event in events:
+        comp = event["competitions"][0]
+        by_side = {c["homeAway"]: c for c in comp["competitors"]}
+        rows.append({
+            "home": by_side["home"]["team"]["displayName"],
+            "away": by_side["away"]["team"]["displayName"],
+            "home_score": int(by_side["home"].get("score") or 0),
+            "away_score": int(by_side["away"].get("score") or 0),
+            "completed": bool(event["status"]["type"]["completed"]),
         })
-    
-    return pd.DataFrame(games)
+    return pd.DataFrame(rows)
 
-def calculate_ats_results(results_df, odds_csv):
-    """Calculate ATS results by merging results with original odds."""
-    if not os.path.exists(odds_csv):
-        print(f"Error: Odds file {odds_csv} not found")
-        return None
-    
-    odds_df = pd.read_csv(odds_csv)
-    odds_df["kickoff_et"] = pd.to_datetime(odds_df["kickoff_et"])
 
-    # Merge on team names and approximate kickoff time (within 1 hour)
-    merged_games = []
+def mascot(team: str) -> str:
+    return team.split()[-1].lower()
 
-    for _, result in results_df.iterrows():
-        # Find matching game in odds data (match on teams only for simplicity)
-        matches = odds_df[
-            (odds_df["home"] == result["home"]) &
-            (odds_df["away"] == result["away"])
+
+def load_lines(week: int) -> pd.DataFrame:
+    lines_path, _ = lines_csv_paths(week)
+    if not lines_path.exists():
+        sys.exit(f"Lines file not found: {lines_path} (exit 2)")
+    df = pd.read_csv(lines_path)
+    # The app assigns game ids by row order (1..N); make that explicit
+    if "id" not in df.columns:
+        df["id"] = [str(i + 1) for i in range(len(df))]
+    df["id"] = df["id"].astype(str)
+    return df
+
+
+def calculate_ats(lines_df: pd.DataFrame, scores_df: pd.DataFrame):
+    """Join lines to final scores and compute ATS results (spread-analysis rules).
+
+    Returns (results_df, unmatched, not_final) — both lists must be empty
+    for the grading to be trustworthy.
+    """
+    results, unmatched, not_final = [], [], []
+
+    for _, line in lines_df.iterrows():
+        match = scores_df[
+            (scores_df["home"] == line["home"]) & (scores_df["away"] == line["away"])
         ]
-        
-        if matches.empty:
-            print(f"Warning: No odds found for {result['away']} @ {result['home']}")
+        if match.empty:  # team-name drift fallback: match both mascots
+            match = scores_df[
+                scores_df["home"].map(mascot).eq(mascot(line["home"]))
+                & scores_df["away"].map(mascot).eq(mascot(line["away"]))
+            ]
+        if match.empty:
+            unmatched.append(f"{line['away']} @ {line['home']}")
             continue
-            
-        odds = matches.iloc[0]
-        
-        # Calculate actual margin (positive = home win, negative = away win)
-        actual_margin = result["home_score"] - result["away_score"]
-        
-        # Get spreads (home spread should be negative for favorites)
-        home_spread = odds["spread_home"] if pd.notna(odds["spread_home"]) else 0
-        away_spread = odds["spread_away"] if pd.notna(odds["spread_away"]) else 0
-        
-        # Calculate ATS results
-        # Home team covers if: actual_margin + home_spread > 0
-        # Away team covers if: actual_margin + home_spread < 0
-        # Push if: actual_margin + home_spread == 0
-        
+
+        score = match.iloc[0]
+        if not score["completed"]:
+            not_final.append(f"{line['away']} @ {line['home']}")
+            continue
+
+        actual_margin = score["home_score"] - score["away_score"]
+        home_spread = line["spread_home"] if pd.notna(line["spread_home"]) else 0
+        away_spread = line["spread_away"] if pd.notna(line["spread_away"]) else 0
+
+        # Home covers if actual_margin + home_spread > 0; equal is a push
         home_ats_margin = actual_margin + home_spread
-        away_ats_margin = -actual_margin + away_spread
-        
         if home_ats_margin > 0:
-            home_ats_result = "W"
-            away_ats_result = "L"
+            home_ats, away_ats = "W", "L"
         elif home_ats_margin < 0:
-            home_ats_result = "L"
-            away_ats_result = "W"
+            home_ats, away_ats = "L", "W"
         else:
-            home_ats_result = "P"  # Push
-            away_ats_result = "P"
-        
-        merged_games.append({
-            "kickoff_et": result["kickoff_et"],
-            "away": result["away"],
-            "home": result["home"],
-            "away_score": result["away_score"],
-            "home_score": result["home_score"],
+            home_ats = away_ats = "P"
+
+        total_line = line["total"] if pd.notna(line.get("total")) else None
+        actual_total = score["home_score"] + score["away_score"]
+        if total_line is None:
+            over_under = ""
+        elif actual_total > total_line:
+            over_under = "OVER"
+        elif actual_total < total_line:
+            over_under = "UNDER"
+        else:
+            over_under = "PUSH"
+
+        results.append({
+            "game_id": line["id"],
+            "kickoff_et": line["kickoff_et"],
+            "away": line["away"],
+            "home": line["home"],
+            "away_score": score["away_score"],
+            "home_score": score["home_score"],
             "actual_margin": actual_margin,
             "home_spread": home_spread,
             "away_spread": away_spread,
             "home_ats_margin": home_ats_margin,
-            "home_ats_result": home_ats_result,
-            "away_ats_result": away_ats_result,
-            "total": odds["total"] if pd.notna(odds["total"]) else None,
-            "actual_total": result["home_score"] + result["away_score"],
-            "over_under": "Over" if pd.notna(odds["total"]) and (result["home_score"] + result["away_score"]) > odds["total"] 
-                         else "Under" if pd.notna(odds["total"]) and (result["home_score"] + result["away_score"]) < odds["total"]
-                         else "Push" if pd.notna(odds["total"]) else None
+            "home_ats_result": home_ats,
+            "away_ats_result": away_ats,
+            "total": total_line,
+            "actual_total": actual_total,
+            "over_under": over_under,
         })
-    
-    return pd.DataFrame(merged_games)
 
-def evaluate_picks(ats_results_df, picks_csv):
-    """Evaluate user picks against ATS results."""
-    if not os.path.exists(picks_csv):
-        print(f"Warning: Picks file {picks_csv} not found. Create this file with your picks.")
-        return None
-    
-    picks_df = pd.read_csv(picks_csv)
-    
-    # Expected picks format:
-    # user,team,game_date
-    # John,Bills,2024-09-08
-    # John,Chiefs,2024-09-09
-    
-    user_results = []
-    
+    return pd.DataFrame(results), unmatched, not_final
+
+
+def grade_picks(picks_df: pd.DataFrame, results_df: pd.DataFrame) -> pd.DataFrame:
+    """Grade each pick against the results. Joins on game_id, falls back to
+    team name. Understands spread picks and O/U picks ('-ou' game_id suffix)."""
+    graded = []
+    by_game_id = {str(r["game_id"]): r for _, r in results_df.iterrows()}
+
     for _, pick in picks_df.iterrows():
-        user = pick["user"]
+        game_id = str(pick["game_id"])
         team = pick["team"]
-        
-        # Find the game result for this team
-        team_games = ats_results_df[
-            (ats_results_df["home"] == team) | (ats_results_df["away"] == team)
-        ]
-        
-        if team_games.empty:
-            print(f"Warning: No result found for {user}'s pick: {team}")
-            continue
-        
-        game = team_games.iloc[0]
-        
-        # Determine if this team covered the spread
-        if game["home"] == team:
-            ats_result = game["home_ats_result"]
+        result = None
+
+        if game_id.endswith("-ou") or team.startswith("O/U:"):
+            game = by_game_id.get(game_id.replace("-ou", ""))
+            if game is not None and game["over_under"]:
+                selection = team.replace("O/U:", "").strip().upper()
+                if game["over_under"] == "PUSH":
+                    result = "P"
+                else:
+                    result = "W" if game["over_under"] == selection else "L"
         else:
-            ats_result = game["away_ats_result"]
-        
-        user_results.append({
-            "user": user,
+            game = by_game_id.get(game_id)
+            if game is None:  # legacy picks: match by team name
+                match = results_df[(results_df["home"] == team) | (results_df["away"] == team)]
+                game = match.iloc[0] if not match.empty else None
+            if game is not None:
+                side = "home_ats_result" if game["home"] == team else "away_ats_result"
+                result = game[side]
+
+        graded.append({
+            "user": pick["user_id"],
+            "game_id": pick["game_id"],
             "team": team,
-            "opponent": game["away"] if game["home"] == team else game["home"],
-            "result": ats_result,
-            "game_date": game["kickoff_et"].strftime("%Y-%m-%d")
+            "result": result,
+            "game_date": str(game["kickoff_et"])[:10] if game is not None else "",
         })
-    
-    return pd.DataFrame(user_results)
+
+    return pd.DataFrame(graded)
+
 
 def main():
-    ap = argparse.ArgumentParser(description="Fetch NFL game results and evaluate ATS picks.")
-    ap.add_argument("--api-key", default=os.getenv("ODDS_API_KEY"),
-                    help="The Odds API key (or set ODDS_API_KEY).")
-    ap.add_argument("--week1-start-et", default="2024-09-02 08:00",
-                    help='NFL Week 1 start ET (e.g., "2024-09-02 08:00")')
-    ap.add_argument("--week", type=int, required=True,
-                    help="NFL week number to get results for")
-    ap.add_argument("--odds-csv", 
-                    help="Path to the original odds CSV file (if not specified, uses nfl_lines_week{N}.csv)")
-    ap.add_argument("--picks-csv", 
-                    help="Path to picks CSV file (if not specified, extracts from Supabase)")
-    ap.add_argument("--use-supabase", action="store_true", default=True,
-                    help="Extract picks from Supabase (default: True)")
-    ap.add_argument("--update-supabase", action="store_true", default=True,
-                    help="Update pick results back to Supabase (default: True)")
-    ap.add_argument("--results-csv", 
-                    help="Output path for results CSV (if not specified, uses nfl_results_week{N}.csv)")
-    ap.add_argument("--days-from", type=int, default=3,
-                    help="Number of past days to fetch completed games (1-3)")
-    
+    ap = argparse.ArgumentParser(description=__doc__)
+    config = load_season_config()
+    ap.add_argument("--week", type=int, default=None,
+                    help="Week to grade (default: the week that just ended)")
+    ap.add_argument("--season", type=int, default=config["season"])
+    ap.add_argument("--allow-partial", action="store_true",
+                    help="Grade even if some games aren't final (in-week refresh)")
+    ap.add_argument("--skip-supabase", action="store_true",
+                    help="Compute CSVs only; don't write grades to Supabase")
     args = ap.parse_args()
-    
-    if not args.api_key:
-        sys.exit("Missing API key. Use --api-key or set ODDS_API_KEY.")
-    
-    # Auto-generate filenames if not provided
-    if not args.odds_csv:
-        args.odds_csv = f"data/lines/nfl_lines_week{args.week}.csv"
-    if not args.results_csv:
-        args.results_csv = f"data/results/nfl_results_week{args.week}.csv"
-    
-    print(f"Fetching results for Week {args.week}...")
-    print(f"Using odds file: {args.odds_csv}")
-    
-    # Handle picks: either from Supabase or CSV file
-    if args.use_supabase and not args.picks_csv:
-        print("Extracting picks from Supabase...")
-        picks_df = extract_picks_for_week(args.week)
-        if not picks_df.empty:
-            args.picks_csv = save_picks_to_csv(picks_df, args.week)
-            print(f"Picks extracted to: {args.picks_csv}")
-        else:
-            print("No picks found in Supabase for this week")
-            return
-    elif not args.picks_csv:
-        args.picks_csv = f"data/picks/picks_week{args.week}.csv"
-    
-    print(f"Using picks file: {args.picks_csv}")
-    
-    # Fetch game scores
-    scores_data = fetch_scores(args.api_key, args.days_from)
-    results_df = parse_game_results(scores_data)
-    
-    if results_df.empty:
-        print("No completed games found in the specified time window.")
+
+    # Default: grade the week BEFORE the current one (Tuesday runs grade last week)
+    week = args.week if args.week is not None else max(1, current_week(config) - 1)
+    print(f"Grading season {args.season}, week {week}")
+
+    lines_df = load_lines(week)
+    events = fetch_espn_week(week, args.season)
+    if not events:
+        sys.exit(f"ESPN returned no events for {args.season} week {week} (exit 2)")
+    scores_df = espn_scores(events)
+
+    results_df, unmatched, not_final = calculate_ats(lines_df, scores_df)
+
+    # ---- Validation gates ----
+    if unmatched:
+        print("GATE FAILED - lines rows with no ESPN match:")
+        for game in unmatched:
+            print(f"  {game}")
+        sys.exit(2)
+    if not_final and not args.allow_partial:
+        print("GATE FAILED - games not final yet (rerun later or --allow-partial):")
+        for game in not_final:
+            print(f"  {game}")
+        sys.exit(3)
+
+    bad_rows = results_df[
+        (results_df["home_ats_result"] == "P") != (results_df["away_ats_result"] == "P")
+    ]
+    if len(bad_rows):
+        print("GATE FAILED - inconsistent ATS results:")
+        print(bad_rows.to_string(index=False))
+        sys.exit(2)
+
+    # ---- Write results CSVs (archive + deployed copy, same bytes) ----
+    results_path, public_results_path = results_csv_paths(week)
+    for path in (results_path, public_results_path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        results_df.to_csv(path, index=False)
+    print(f"\nResults written: {results_path} and {public_results_path}")
+    print(results_df[["away", "home", "away_score", "home_score",
+                      "home_ats_result", "away_ats_result", "over_under"]].to_string(index=False))
+
+    # ---- Grade picks ----
+    picks_df = extract_picks_for_week(week, args.season)
+    if picks_df.empty:
+        print(f"No picks for season {args.season} week {week}; done.")
         return
-    
-    print(f"Found {len(results_df)} completed games")
-    
-    # Calculate ATS results
-    ats_results = calculate_ats_results(results_df, args.odds_csv)
-    
-    if ats_results is None or ats_results.empty:
-        print("Could not calculate ATS results.")
+
+    save_picks_to_csv(picks_df, week, str(PICKS_DIR / f"picks_week{week}.csv"), args.season)
+    pick_results_df = grade_picks(picks_df, results_df)
+
+    ungraded = pick_results_df[pick_results_df["result"].isna()]
+    if len(ungraded) and not args.allow_partial:
+        print("GATE FAILED - picks that could not be graded:")
+        print(ungraded.to_string(index=False))
+        sys.exit(4)
+
+    graded_df = pick_results_df[pick_results_df["result"].notna()]
+    PICK_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    pick_results_path = PICK_RESULTS_DIR / f"pick_results_week{week}.csv"
+    pick_results_df.to_csv(pick_results_path, index=False)
+    print(f"\nPick results written: {pick_results_path}")
+
+    print("\nPer-user records this week:")
+    for user, group in graded_df.groupby("user"):
+        wins = (group["result"] == "W").sum()
+        losses = (group["result"] == "L").sum()
+        pushes = (group["result"] == "P").sum()
+        print(f"  {user}: {wins}-{losses}" + (f"-{pushes} (P)" if pushes else ""))
+
+    # ---- Write grades to Supabase ----
+    if args.skip_supabase:
+        print("\n--skip-supabase: not writing grades to the database")
         return
-    
-    # Display results
-    print("\n=== GAME RESULTS & ATS ===")
-    for _, game in ats_results.iterrows():
-        print(f"{game['away']} {game['away_score']} @ {game['home']} {game['home_score']}")
-        print(f"  Spread: {game['home']} {game['home_spread']:+.1f}")
-        print(f"  ATS: {game['home']} {game['home_ats_result']}, {game['away']} {game['away_ats_result']}")
-        if game['over_under']:
-            print(f"  Total: {game['actual_total']:.0f} ({game['over_under']} {game['total']:.1f})")
-        print()
-    
-    # Save results
-    ats_results.to_csv(args.results_csv, index=False)
-    print(f"Results saved to: {args.results_csv}")
-    
-    # Evaluate picks if provided
-    if args.picks_csv:
-        user_results = evaluate_picks(ats_results, args.picks_csv)
-        if user_results is not None:
-            print("\n=== PICK RESULTS ===")
-            for user in user_results["user"].unique():
-                user_picks = user_results[user_results["user"] == user]
-                wins = len(user_picks[user_picks["result"] == "W"])
-                losses = len(user_picks[user_picks["result"] == "L"])
-                pushes = len(user_picks[user_picks["result"] == "P"])
-                print(f"{user}: {wins}-{losses}-{pushes}")
-                
-                for _, pick in user_picks.iterrows():
-                    print(f"  {pick['team']} vs {pick['opponent']}: {pick['result']}")
-            
-            # Save pick results
-            picks_results_csv = f"data/pick_results/pick_results_week{args.week}.csv"
-            user_results.to_csv(picks_results_csv, index=False)
-            print(f"Pick results saved to: {picks_results_csv}")
-            
-            # Update Supabase with results if enabled
-            if args.update_supabase:
-                print("\nUpdating Supabase with pick results...")
-                if update_pick_results(args.week, user_results):
-                    print("✓ Supabase updated successfully")
-                    
-                    # Show updated leaderboard
-                    print("\n=== UPDATED LEADERBOARD ===")
-                    leaderboard = get_leaderboard()
-                    if not leaderboard.empty:
-                        for _, row in leaderboard.iterrows():
-                            print(f"{row['user']}: {row['correct_picks']}/{row['total_picks']} ({row['percentage']}%)")
-                    else:
-                        print("Could not retrieve leaderboard")
-                else:
-                    print("✗ Failed to update Supabase")
+    if not update_pick_results(week, graded_df, args.season):
+        sys.exit(5)
+
+    print("\nSeason leaderboard:")
+    print(get_leaderboard(args.season).to_string(index=False))
+
 
 if __name__ == "__main__":
     main()
