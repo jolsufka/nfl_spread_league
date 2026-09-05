@@ -31,6 +31,9 @@
 }
 
 :root[data-theme='dark'] {
+  /* re-assert the green ramp: chart-factory's dark block redefines --scale-orange-* */
+  --scale-orange-lo: var(--accent-soft);
+  --scale-orange-hi: var(--accent);
   --paper: #141618;
   --card: #1d2023;
   --ink: #e9eaec;
@@ -168,22 +171,38 @@ body {
   body { padding-bottom: 76px; }
 }
 
-/* header controls */
+/* header controls — one consistent 28px control height */
 .sl-ctx {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 650;
   background: var(--chip);
   border: 1px solid var(--line);
-  padding: 5px 10px;
+  padding: 0 10px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
   border-radius: 99px;
   color: var(--ink-soft);
   cursor: pointer;
+  line-height: 1;
 }
 .sl-ctx select {
   background: none;
   border: none;
   font-weight: 700;
   color: var(--ink);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   cursor: pointer;
+  padding: 0;
+  appearance: auto;
+}
+
+/* chart-factory table refinements: consistent row heights, no cell wrap */
+.sl-card table td,
+.sl-card table th {
+  white-space: nowrap;
+}
+.sl-card table td {
+  height: 44px;
+  box-sizing: border-box;
 }

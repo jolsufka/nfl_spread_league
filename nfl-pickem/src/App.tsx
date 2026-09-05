@@ -429,7 +429,7 @@ function App() {
   const activeWeek = mode === 'playoffs' ? playoffWeek : currentWeek;
   const navItems = isCurrentSeason
     ? NAV_ITEMS
-    : NAV_ITEMS.filter((item) => item.key === 'standings' || item.key === 'stats');
+    : [{ key: 'standings' as ViewKey, label: 'Summary', icon: '🏆' }];
   const effectiveView: ViewKey = navItems.some((item) => item.key === view)
     ? view
     : 'standings';
@@ -466,7 +466,7 @@ function App() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0' }}>
-          <div className="disp" style={{ fontSize: '1.25rem', fontWeight: 700, lineHeight: 1 }}>
+          <div className="disp" style={{ fontSize: '1.55rem', fontWeight: 700, lineHeight: 1 }}>
             Spread League
             <small
               style={{
