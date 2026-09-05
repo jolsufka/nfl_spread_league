@@ -58,6 +58,62 @@ export default function StandingsScreen({
   const abbr = (team: string) =>
     teamAbbreviations[team] || getMascotName(team).substring(0, 3).toUpperCase();
 
+  // Weekly performance heatmap: wins per player per week (0-3)
+  const { heatColumns, heatRows } = useMemo(() => {
+    const gradedWeeks = Array.from(
+      new Set(
+        regularSeason(picks)
+          .filter((userWeek) => userWeek.picks.some((pick) => gradeOf(pick) !== null))
+          .map((userWeek) => userWeek.week)
+      )
+    ).sort((a, b) => a - b);
+
+    const heatCell = (wins: number | null) => {
+      if (wins === null) return '<span class="rescell o">—</span>';
+      const style =
+        wins >= 3
+          ? 'background:var(--accent);color:var(--accent-ink)'
+          : wins === 2
+          ? 'background:var(--win-bg);color:var(--win)'
+          : wins === 1
+          ? 'background:var(--push-bg);color:var(--push)'
+          : 'background:var(--loss-bg);color:var(--loss)';
+      return `<span class="rescell" style="${style}">${wins}</span>`;
+    };
+
+    const columns: any[] = [
+      { key: 'player', header: 'Player', className: 'primary-cell' },
+      ...gradedWeeks.map((week) => ({
+        key: `w${week}`,
+        header: `W${week}`,
+        align: 'center',
+        render: (value: any) => heatCell(value === '' || value === undefined ? null : Number(value)),
+      })),
+      {
+        key: 'total',
+        header: 'Total',
+        align: 'right',
+        render: (value: any) => `<b class="tnum">${value}</b>`,
+      },
+    ];
+
+    const rows = standings.map((standing) => {
+      const row: { [key: string]: any } = { player: standing.name, total: standing.wins };
+      for (const week of gradedWeeks) {
+        const userWeek = regularSeason(picks).find(
+          (candidate) => candidate.userId === standing.userId && candidate.week === week
+        );
+        const graded = userWeek?.picks.filter((pick) => gradeOf(pick) !== null) ?? [];
+        row[`w${week}`] = graded.length
+          ? graded.filter((pick) => gradeOf(pick) === 'W').length
+          : '';
+      }
+      return row;
+    });
+
+    return { heatColumns: columns, heatRows: rows };
+  }, [picks, standings]);
+
   // Season matrix: one row per player, one column per week with picks
   const { matrixColumns, matrixRows } = useMemo(() => {
     const weeks = Array.from(
@@ -147,6 +203,15 @@ export default function StandingsScreen({
             layout: 'fill',
             barColumns: [{ key: 'winPct' }],
           }}
+        />
+      </div>
+
+      <h2 className="sl-sec">Weekly performance</h2>
+      <div className="sl-card" style={{ padding: '4px 12px' }}>
+        <CfTable
+          columns={heatColumns}
+          rows={heatRows}
+          options={{ stickyHeader: true, stickyFirstColumn: true, layout: 'fill' }}
         />
       </div>
 
