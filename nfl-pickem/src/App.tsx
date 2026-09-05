@@ -557,10 +557,8 @@ function App() {
 
       {!isCurrentSeason && (
         <div
-          className="sl-card"
           style={{
             marginTop: 12,
-            padding: '8px 14px',
             fontSize: '0.82rem',
             color: 'var(--ink-soft)',
             display: 'flex',

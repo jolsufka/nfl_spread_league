@@ -217,6 +217,14 @@ body {
   transform: translateX(-50%);
 }
 
+/* card-less table (archive standings): no white surfaces anywhere */
+.sl-plain table,
+.sl-plain thead,
+.sl-plain th,
+.sl-plain td {
+  background: transparent !important;
+}
+
 /* For dense numeric grids (weekly heatmap): defeat d3-table's inline
    min-width floor so the table shares the card's width (the floor assumes
    generic content; these cells are 1-2 characters). Wide screens only —
