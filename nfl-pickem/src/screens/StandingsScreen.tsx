@@ -186,15 +186,12 @@ export default function StandingsScreen({
 
   return (
     <div>
-      <h2 className="sl-sec">Standings</h2>
       <div
-        className={archive ? '' : 'sl-card'}
-        style={
-          archive
-            ? { width: 'fit-content', maxWidth: '100%', margin: '0 auto' }
-            : { padding: '4px 12px' }
-        }
+        className={archive ? 'sl-plain' : ''}
+        style={archive ? { width: 'fit-content', maxWidth: '100%', margin: '0 auto' } : {}}
       >
+        <h2 className="sl-sec">Standings</h2>
+        <div className={archive ? '' : 'sl-card'} style={archive ? {} : { padding: '4px 12px' }}>
         <CfTable
           sortable
           columns={[
@@ -212,11 +209,12 @@ export default function StandingsScreen({
           ]}
           rows={standingsRows}
           options={{
-            stickyHeader: true,
+            stickyHeader: !archive,
             layout: archive ? 'fixed' : 'fill',
             barColumns: [{ key: 'winPct' }],
           }}
         />
+        </div>
       </div>
 
       <h2 className="sl-sec sl-breakout">Weekly performance</h2>
