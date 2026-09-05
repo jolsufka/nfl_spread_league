@@ -255,7 +255,7 @@ export default function StandingsScreen({
           config={{
             data: bumpData,
             colors: PLAYER_COLORS.slice(0, users.length),
-            maxHeight: 460,
+            maxHeight: 280,
           }}
         />
       </div>
