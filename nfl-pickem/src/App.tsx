@@ -12,6 +12,10 @@ interface Game {
   spread_home: number;
   total: number;
   spreads_book: string;
+  // First half lines (Super Bowl only)
+  spread_h1_away?: number;
+  spread_h1_home?: number;
+  total_h1?: number;
 }
 
 interface WeatherData {
@@ -25,10 +29,24 @@ interface WeatherData {
 
 interface TeamPick {
   gameId: string;
-  team: string; // team name selected, or "OVER"/"UNDER" for totals
-  spread: number; // spread for the selected team, or total line for O/U
+  team: string; // team name selected, or "OVER"/"UNDER" for totals, or prop description
+  spread: number; // spread for the selected team, or total line for O/U, or prop line
   correct?: boolean; // whether this pick was correct (optional, for future use)
-  pickType?: 'spread' | 'total'; // type of pick (defaults to 'spread' for backwards compatibility)
+  pickType?: 'spread' | 'total' | 'spread_h1' | 'total_h1' | 'prop1' | 'prop2'; // type of pick (defaults to 'spread' for backwards compatibility)
+  propId?: string; // ID of the prop bet (for prop picks only)
+  propSelection?: 'OVER' | 'UNDER' | 'YES'; // selection for prop bet
+}
+
+interface PropBet {
+  id: string;
+  market: string;
+  player: string;
+  type: 'over_under' | 'yes_no';
+  line: number | null;
+  price?: number; // for yes/no props
+  over_price?: number; // for o/u props
+  under_price?: number; // for o/u props
+  display: string;
 }
 
 interface Pick {
@@ -67,7 +85,7 @@ function App() {
   const [playoffTab, setPlayoffTab] = useState<'picks' | 'chart' | 'leaderboard'>('picks');
   const [mode, setMode] = useState<'regular' | 'playoffs'>('playoffs'); // Default to playoffs since we're in playoff season
   const [playoffGames, setPlayoffGames] = useState<Game[]>([]);
-  const [playoffWeek, setPlayoffWeek] = useState(102); // 100 = Wild Card, 101 = Divisional, 102 = Conference, 103 = Super Bowl
+  const [playoffWeek, setPlayoffWeek] = useState(103); // 100 = Wild Card, 101 = Divisional, 102 = Conference, 103 = Super Bowl
   const [teamAbbreviations, setTeamAbbreviations] = useState<{[key: string]: string}>({});
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
 
@@ -145,7 +163,11 @@ function App() {
             spread_away: parseFloat(row.spread_away),
             spread_home: parseFloat(row.spread_home),
             total: parseFloat(row.total),
-            spreads_book: row.spreads_book
+            spreads_book: row.spreads_book,
+            // First half lines (Super Bowl only)
+            spread_h1_away: row.spread_h1_away ? parseFloat(row.spread_h1_away) : undefined,
+            spread_h1_home: row.spread_h1_home ? parseFloat(row.spread_h1_home) : undefined,
+            total_h1: row.total_h1 ? parseFloat(row.total_h1) : undefined
           })).filter(game => game.away && game.home);
 
           setPlayoffGames(csvGames);
@@ -231,18 +253,48 @@ function App() {
           };
         }
 
-        // Parse O/U picks - they are stored with "O/U:" prefix and "-ou" suffix on game_id
-        const isTotal = pick.team.startsWith('O/U:');
-        const team = isTotal ? pick.team.substring(4) : pick.team;
-        const gameId = isTotal ? pick.game_id.replace('-ou', '') : pick.game_id;
-        const pickType = isTotal ? 'total' : 'spread';
+        // Parse pick type from game_id and team format:
+        // Props: team starts with "PROP:" and game_id is the prop ID
+        // total_h1: game_id ends with "-h1-ou" and team starts with "O/U:"
+        // spread_h1: game_id ends with "-h1" (but not "-h1-ou")
+        // total: game_id ends with "-ou" (but not "-h1-ou") and team starts with "O/U:"
+        // spread: default
+        let pickType: 'spread' | 'total' | 'spread_h1' | 'total_h1' | 'prop1' | 'prop2' = 'spread';
+        let team = pick.team;
+        let gameId = pick.game_id;
+        let propId: string | undefined;
+        let propSelection: 'OVER' | 'UNDER' | 'YES' | undefined;
+
+        if (pick.team.startsWith('PROP:')) {
+          // Parse prop pick: "PROP:OVER:displayText" or "PROP:YES:displayText"
+          const parts = pick.team.split(':');
+          propSelection = parts[1] as 'OVER' | 'UNDER' | 'YES';
+          team = parts.slice(2).join(':'); // Rejoin in case display text has colons
+          propId = pick.game_id;
+          // Determine if prop1 or prop2 based on existing picks
+          const existingPropPicks = acc[key].picks.filter((p: any) => p.pickType === 'prop1' || p.pickType === 'prop2');
+          pickType = existingPropPicks.length === 0 ? 'prop1' : 'prop2';
+        } else if (pick.game_id.endsWith('-h1-ou')) {
+          pickType = 'total_h1';
+          team = pick.team.startsWith('O/U:') ? pick.team.substring(4) : pick.team;
+          gameId = pick.game_id.replace('-h1-ou', '');
+        } else if (pick.game_id.endsWith('-h1')) {
+          pickType = 'spread_h1';
+          gameId = pick.game_id.replace('-h1', '');
+        } else if (pick.game_id.endsWith('-ou')) {
+          pickType = 'total';
+          team = pick.team.startsWith('O/U:') ? pick.team.substring(4) : pick.team;
+          gameId = pick.game_id.replace('-ou', '');
+        }
 
         acc[key].picks.push({
           gameId: gameId,
           team: team,
           spread: pick.spread,
           correct: pick.correct,
-          pickType: pickType
+          pickType: pickType,
+          propId: propId,
+          propSelection: propSelection
         });
 
         if (pick.correct === true) {
@@ -271,15 +323,56 @@ function App() {
         .eq('week', week);
 
       // Then insert the new picks
-      // For totals, prefix the team with "O/U:" and add "-ou" to game_id to avoid unique constraint
-      const pickRecords = selectedPicks.map(pick => ({
-        user_id: userId,
-        week: week,
-        game_id: pick.pickType === 'total' ? `${pick.gameId}-ou` : pick.gameId,
-        team: pick.pickType === 'total' ? `O/U:${pick.team}` : pick.team,
-        spread: pick.spread,
-        correct: null // Will be set later when games finish
-      }));
+      // game_id format based on pickType:
+      //   spread: gameId (e.g., "playoff-1")
+      //   total: gameId-ou (e.g., "playoff-1-ou")
+      //   spread_h1: gameId-h1 (e.g., "playoff-1-h1")
+      //   total_h1: gameId-h1-ou (e.g., "playoff-1-h1-ou")
+      //   prop1/prop2: propId (e.g., "player_rush_yds_kenneth_walker_iii")
+      // team format:
+      //   spread/spread_h1: team name
+      //   total/total_h1: "O/U:OVER" or "O/U:UNDER"
+      //   props (yes/no): prop display text
+      //   props (o/u): "PROP:OVER:propDisplay" or "PROP:UNDER:propDisplay"
+      const pickRecords = selectedPicks.map(pick => {
+        let game_id = pick.gameId;
+        let team = pick.team;
+
+        switch (pick.pickType) {
+          case 'total':
+            game_id = `${pick.gameId}-ou`;
+            // team already has O/U: prefix from handleTotalPick
+            break;
+          case 'spread_h1':
+            game_id = `${pick.gameId}-h1`;
+            break;
+          case 'total_h1':
+            game_id = `${pick.gameId}-h1-ou`;
+            // team already has O/U: prefix from handleTotalPick
+            break;
+          case 'prop1':
+          case 'prop2':
+            game_id = pick.propId || pick.gameId;
+            if (pick.propSelection && pick.propSelection !== 'YES') {
+              team = `PROP:${pick.propSelection}:${pick.team}`;
+            } else {
+              team = `PROP:YES:${pick.team}`;
+            }
+            break;
+          default:
+            // spread - use as-is
+            break;
+        }
+
+        return {
+          user_id: userId,
+          week: week,
+          game_id: game_id,
+          team: team,
+          spread: pick.spread,
+          correct: null // Will be set later when games finish
+        };
+      });
 
       const { error } = await supabase
         .from('picks')
@@ -537,13 +630,23 @@ function App() {
                   {selectedUser ? `${users.find(u => u.id === selectedUser)?.name}'s Playoff Picks - ${getPlayoffWeekName(playoffWeek)}` : `${getPlayoffWeekName(playoffWeek)} Round Picks`}
                 </h2>
 
-                <PlayoffPickInterface
-                  games={playoffGames}
-                  currentPicks={getCurrentUserPlayoffPicks()?.picks || []}
-                  onSavePicks={(newPicks) => savePicks(selectedUser, playoffWeek, newPicks)}
-                  selectedUser={selectedUser}
-                  users={users}
-                />
+                {playoffWeek === 103 ? (
+                  <SuperBowlPickInterface
+                    game={playoffGames[0]}
+                    currentPicks={getCurrentUserPlayoffPicks()?.picks || []}
+                    onSavePicks={(newPicks) => savePicks(selectedUser, playoffWeek, newPicks)}
+                    selectedUser={selectedUser}
+                    users={users}
+                  />
+                ) : (
+                  <PlayoffPickInterface
+                    games={playoffGames}
+                    currentPicks={getCurrentUserPlayoffPicks()?.picks || []}
+                    onSavePicks={(newPicks) => savePicks(selectedUser, playoffWeek, newPicks)}
+                    selectedUser={selectedUser}
+                    users={users}
+                  />
+                )}
               </div>
             )}
 
@@ -1018,8 +1121,9 @@ function PlayoffLeaderboard({ picks, users, playoffWeek }: PlayoffLeaderboardPro
   };
 
   const getUserTotalPicks = (userId: string) => {
+    // Only count graded picks (correct === true or correct === false), not pending picks
     return playoffPicks.filter(p => p.userId === userId).reduce((sum, pick) => {
-      return sum + pick.picks.length;
+      return sum + pick.picks.filter(teamPick => teamPick.correct === true || teamPick.correct === false).length;
     }, 0);
   };
 
@@ -1150,6 +1254,615 @@ function PlayoffLeaderboard({ picks, users, playoffWeek }: PlayoffLeaderboardPro
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+interface SuperBowlPickInterfaceProps {
+  game: Game;
+  currentPicks: TeamPick[];
+  onSavePicks: (picks: TeamPick[]) => void;
+  selectedUser: string;
+  users: User[];
+}
+
+function SuperBowlPickInterface({ game, currentPicks, onSavePicks, selectedUser, users }: SuperBowlPickInterfaceProps) {
+  // Pick types for Super Bowl: spread, total, spread_h1, total_h1, prop1, prop2
+  const [picks, setPicks] = useState<{[key: string]: TeamPick}>(() => {
+    const pickMap: {[key: string]: TeamPick} = {};
+    currentPicks.forEach(p => {
+      if (p.pickType) pickMap[p.pickType] = p;
+    });
+    return pickMap;
+  });
+  const [hasExistingPicks, setHasExistingPicks] = useState<boolean>(currentPicks.length > 0);
+  const [availableProps, setAvailableProps] = useState<PropBet[]>([]);
+  const [propSearch, setPropSearch] = useState('');
+  const [showPropDropdown, setShowPropDropdown] = useState<'prop1' | 'prop2' | null>(null);
+
+  // Load props on mount
+  React.useEffect(() => {
+    const loadProps = async () => {
+      try {
+        const response = await fetch(`${process.env.PUBLIC_URL}/lines/superbowl_props.json`);
+        const data = await response.json();
+        setAvailableProps(data);
+      } catch (error) {
+        console.error('Error loading props:', error);
+      }
+    };
+    loadProps();
+  }, []);
+
+  React.useEffect(() => {
+    const pickMap: {[key: string]: TeamPick} = {};
+    currentPicks.forEach(p => {
+      if (p.pickType) pickMap[p.pickType] = p;
+    });
+    setPicks(pickMap);
+    setHasExistingPicks(currentPicks.length > 0);
+  }, [currentPicks]);
+
+  const isGameLocked = () => {
+    if (!game) return false;
+    const gameTime = new Date(game.kickoff_et);
+    const now = new Date();
+    return now >= gameTime;
+  };
+
+  const gameLocked = isGameLocked();
+
+  const handleSpreadPick = (pickType: 'spread' | 'spread_h1', team: string, spread: number) => {
+    if (gameLocked) return;
+    setPicks(prev => ({
+      ...prev,
+      [pickType]: { gameId: game.id, team, spread, pickType }
+    }));
+  };
+
+  const handleTotalPick = (pickType: 'total' | 'total_h1', selection: 'OVER' | 'UNDER', total: number) => {
+    if (gameLocked) return;
+    setPicks(prev => ({
+      ...prev,
+      [pickType]: { gameId: game.id, team: `O/U:${selection}`, spread: total, pickType }
+    }));
+  };
+
+  const handlePropSelect = (pickType: 'prop1' | 'prop2', prop: PropBet) => {
+    if (gameLocked) return;
+    // For yes/no props, auto-select YES
+    if (prop.type === 'yes_no') {
+      setPicks(prev => ({
+        ...prev,
+        [pickType]: {
+          gameId: game.id,
+          team: prop.display,
+          spread: prop.price || 0,
+          pickType,
+          propId: prop.id,
+          propSelection: 'YES'
+        }
+      }));
+    } else {
+      // For O/U props, just select the prop (user will pick O/U next)
+      setPicks(prev => ({
+        ...prev,
+        [pickType]: {
+          gameId: game.id,
+          team: prop.display,
+          spread: prop.line || 0,
+          pickType,
+          propId: prop.id,
+          propSelection: undefined // Will be set when O/U is selected
+        }
+      }));
+    }
+    setShowPropDropdown(null);
+    setPropSearch('');
+  };
+
+  const handlePropOUSelect = (pickType: 'prop1' | 'prop2', selection: 'OVER' | 'UNDER') => {
+    if (gameLocked) return;
+    setPicks(prev => {
+      const current = prev[pickType];
+      if (!current) return prev;
+      return {
+        ...prev,
+        [pickType]: { ...current, propSelection: selection }
+      };
+    });
+  };
+
+  const handleRemoveProp = (pickType: 'prop1' | 'prop2') => {
+    if (gameLocked) return;
+    setPicks(prev => {
+      const newPicks = { ...prev };
+      delete newPicks[pickType];
+      return newPicks;
+    });
+  };
+
+  const getSelectedPropIds = () => {
+    const ids: string[] = [];
+    if (picks['prop1']?.propId) ids.push(picks['prop1'].propId);
+    if (picks['prop2']?.propId) ids.push(picks['prop2'].propId);
+    return ids;
+  };
+
+  // Filter props: exclude already selected AND exclude odds worse than -120
+  const isOddsValid = (prop: PropBet): boolean => {
+    // For yes/no props, check the price
+    if (prop.type === 'yes_no') {
+      // Positive odds are always valid, negative odds must be -120 or better (closer to 0)
+      return prop.price === null || prop.price === undefined || prop.price >= -120;
+    }
+    // For O/U props, at least one side must be -120 or better
+    const overValid = prop.over_price === null || prop.over_price === undefined || prop.over_price >= -120;
+    const underValid = prop.under_price === null || prop.under_price === undefined || prop.under_price >= -120;
+    return overValid || underValid;
+  };
+
+  const filteredProps = availableProps.filter(prop => {
+    const selectedIds = getSelectedPropIds();
+    if (selectedIds.includes(prop.id)) return false; // Don't show already selected props
+    if (!isOddsValid(prop)) return false; // Don't show props with bad odds
+    if (!propSearch) return true;
+    return prop.display.toLowerCase().includes(propSearch.toLowerCase()) ||
+           prop.player.toLowerCase().includes(propSearch.toLowerCase()) ||
+           prop.market.toLowerCase().includes(propSearch.toLowerCase());
+  });
+
+  // Group filtered props by market category
+  const groupedProps = filteredProps.reduce((acc, prop) => {
+    const market = prop.market;
+    if (!acc[market]) acc[market] = [];
+    acc[market].push(prop);
+    return acc;
+  }, {} as { [key: string]: PropBet[] });
+
+  // Sort markets for consistent ordering
+  const sortedMarkets = Object.keys(groupedProps).sort();
+
+  const handleSave = () => {
+    // Require all 6 picks (spread, total, spread_h1, total_h1, prop1, prop2)
+    const requiredPicks = ['spread', 'total', 'spread_h1', 'total_h1', 'prop1', 'prop2'];
+    const allRequired = requiredPicks.every(pt => {
+      const pick = picks[pt];
+      if (!pick) return false;
+      // For O/U props, ensure selection is made
+      if ((pt === 'prop1' || pt === 'prop2') && pick.propId) {
+        const prop = availableProps.find(p => p.id === pick.propId);
+        if (prop?.type === 'over_under' && !pick.propSelection) return false;
+      }
+      return true;
+    });
+    if (allRequired) {
+      const allPicks = Object.values(picks);
+      onSavePicks(allPicks);
+    }
+  };
+
+  const arePicksModified = () => {
+    const allPicks = Object.values(picks);
+    if (!hasExistingPicks && allPicks.length > 0) return true;
+    if (hasExistingPicks && allPicks.length !== currentPicks.length) return true;
+    return allPicks.some(pick => {
+      const originalPick = currentPicks.find(op => op.pickType === pick.pickType);
+      if (!originalPick) return true;
+      return originalPick.team !== pick.team ||
+             originalPick.spread !== pick.spread ||
+             originalPick.propId !== pick.propId ||
+             originalPick.propSelection !== pick.propSelection;
+    });
+  };
+
+  const isPropPickComplete = (pickType: 'prop1' | 'prop2') => {
+    const pick = picks[pickType];
+    if (!pick?.propId) return false;
+    const prop = availableProps.find(p => p.id === pick.propId);
+    if (prop?.type === 'over_under') return !!pick.propSelection;
+    return true; // yes/no props are complete once selected
+  };
+
+  const requiredPicks = ['spread', 'total', 'spread_h1', 'total_h1', 'prop1', 'prop2'];
+  const completedPicks = requiredPicks.filter(pt => {
+    if (pt === 'prop1' || pt === 'prop2') return isPropPickComplete(pt as 'prop1' | 'prop2');
+    return !!picks[pt];
+  }).length;
+  const allPicksComplete = completedPicks === 6;
+
+  const getButtonText = () => {
+    const userName = users.find(u => u.id === selectedUser)?.name || 'Unknown User';
+    if (!hasExistingPicks) {
+      return `Save Picks for ${userName} (${completedPicks}/6)`;
+    } else if (arePicksModified()) {
+      return `Update Picks for ${userName} (${completedPicks}/6)`;
+    } else {
+      return `Picks Saved for ${userName} (${completedPicks}/6)`;
+    }
+  };
+
+  const formatGameTime = (kickoffEt: string) => {
+    const date = new Date(kickoffEt);
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timezoneAbbr = new Date().toLocaleTimeString('en-US', {
+      timeZoneName: 'short'
+    }).split(' ')[2];
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: userTimezone
+    }) + ` ${timezoneAbbr}`;
+  };
+
+  const getMascotName = (teamName: string) => {
+    return teamName.split(' ').slice(-1)[0];
+  };
+
+  const getTeamLogo = (teamName: string) => {
+    const teamLogos: { [key: string]: string } = {
+      'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
+      'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
+      'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
+      'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
+      'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
+      'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
+      'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
+      'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
+      'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
+      'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
+      'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
+      'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
+      'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
+      'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
+      'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
+      'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
+      'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
+      'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
+      'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
+      'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
+      'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
+      'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
+      'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
+      'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
+      'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
+      'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
+      'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
+      'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
+      'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
+      'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
+      'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
+      'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
+    };
+    return teamLogos[teamName] || '';
+  };
+
+  if (!game) {
+    return <div className="text-gray-500">Loading Super Bowl data...</div>;
+  }
+
+  const renderSpreadPick = (title: string, pickType: 'spread' | 'spread_h1', awaySpread: number, homeSpread: number) => {
+    const currentPick = picks[pickType];
+    return (
+      <div className={`border rounded-lg p-4 shadow-md ${gameLocked ? 'bg-gray-50' : 'bg-white'}`}>
+        <h4 className={`font-semibold mb-3 ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>{title}</h4>
+        <div className="space-y-2">
+          {/* Away Team */}
+          <div
+            className={`flex items-center space-x-3 p-3 rounded border transition-colors cursor-pointer ${
+              gameLocked ? 'opacity-60 cursor-not-allowed' :
+              currentPick?.team === game.away ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => handleSpreadPick(pickType, game.away, awaySpread)}
+          >
+            {getTeamLogo(game.away) && (
+              <img src={getTeamLogo(game.away)} alt={game.away} className="w-8 h-8 object-contain" />
+            )}
+            <span className="flex-1 font-medium">{getMascotName(game.away)}</span>
+            <span className={`text-lg font-bold ${currentPick?.team === game.away ? 'text-green-600' : 'text-gray-600'}`}>
+              {awaySpread > 0 ? `+${awaySpread}` : awaySpread}
+            </span>
+          </div>
+          {/* Home Team */}
+          <div
+            className={`flex items-center space-x-3 p-3 rounded border transition-colors cursor-pointer ${
+              gameLocked ? 'opacity-60 cursor-not-allowed' :
+              currentPick?.team === game.home ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => handleSpreadPick(pickType, game.home, homeSpread)}
+          >
+            {getTeamLogo(game.home) && (
+              <img src={getTeamLogo(game.home)} alt={game.home} className="w-8 h-8 object-contain" />
+            )}
+            <span className="flex-1 font-medium">{getMascotName(game.home)}</span>
+            <span className={`text-lg font-bold ${currentPick?.team === game.home ? 'text-green-600' : 'text-gray-600'}`}>
+              {homeSpread > 0 ? `+${homeSpread}` : homeSpread}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTotalPick = (title: string, pickType: 'total' | 'total_h1', total: number) => {
+    const currentPick = picks[pickType];
+    // Check for both formats: with prefix (new picks) and without (loaded from DB)
+    const isOver = currentPick?.team === 'O/U:OVER' || currentPick?.team === 'OVER';
+    const isUnder = currentPick?.team === 'O/U:UNDER' || currentPick?.team === 'UNDER';
+    return (
+      <div className={`border rounded-lg p-4 shadow-md ${gameLocked ? 'bg-gray-50' : 'bg-white'}`}>
+        <h4 className={`font-semibold mb-3 ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>{title}</h4>
+        <div className="text-center mb-3">
+          <span className="text-2xl font-bold text-blue-600">{total}</span>
+        </div>
+        <div className="flex space-x-3">
+          <button
+            className={`flex-1 py-3 px-4 rounded-lg border-2 font-semibold transition-colors ${
+              gameLocked ? 'opacity-60 cursor-not-allowed' :
+              isOver ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => handleTotalPick(pickType, 'OVER', total)}
+            disabled={gameLocked}
+          >
+            OVER
+          </button>
+          <button
+            className={`flex-1 py-3 px-4 rounded-lg border-2 font-semibold transition-colors ${
+              gameLocked ? 'opacity-60 cursor-not-allowed' :
+              isUnder ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => handleTotalPick(pickType, 'UNDER', total)}
+            disabled={gameLocked}
+          >
+            UNDER
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPropPicker = (pickType: 'prop1' | 'prop2') => {
+    const currentPick = picks[pickType];
+    const selectedProp = currentPick?.propId ? availableProps.find(p => p.id === currentPick.propId) : null;
+    const isDropdownOpen = showPropDropdown === pickType;
+    const propNumber = pickType === 'prop1' ? 1 : 2;
+
+    // If a prop is selected, show it with O/U buttons (if applicable) and remove option
+    if (selectedProp) {
+      return (
+        <div className={`border rounded-lg p-4 shadow-md ${gameLocked ? 'bg-gray-50' : 'bg-white'}`}>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className={`font-semibold ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>Prop {propNumber}</h4>
+            {!gameLocked && (
+              <button
+                onClick={() => handleRemoveProp(pickType)}
+                className="text-red-500 hover:text-red-700 text-sm font-medium"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-3">
+            <div className="font-medium text-purple-900">{selectedProp.player}</div>
+            <div className="text-sm text-purple-700">{selectedProp.market}</div>
+            {selectedProp.line && (
+              <div className="text-lg font-bold text-purple-600 mt-1">Line: {selectedProp.line}</div>
+            )}
+            {selectedProp.type === 'yes_no' && (
+              <div className="text-sm text-green-600 mt-1 font-medium">
+                YES ({selectedProp.price! > 0 ? '+' : ''}{selectedProp.price})
+              </div>
+            )}
+          </div>
+
+          {/* O/U selection for over_under props */}
+          {selectedProp.type === 'over_under' && (
+            <div className="flex space-x-3">
+              <button
+                className={`flex-1 py-2 px-3 rounded-lg border-2 font-semibold transition-colors text-sm ${
+                  gameLocked ? 'opacity-60 cursor-not-allowed' :
+                  currentPick?.propSelection === 'OVER' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 hover:border-purple-300'
+                }`}
+                onClick={() => handlePropOUSelect(pickType, 'OVER')}
+                disabled={gameLocked}
+              >
+                OVER ({selectedProp.over_price! > 0 ? '+' : ''}{selectedProp.over_price})
+              </button>
+              <button
+                className={`flex-1 py-2 px-3 rounded-lg border-2 font-semibold transition-colors text-sm ${
+                  gameLocked ? 'opacity-60 cursor-not-allowed' :
+                  currentPick?.propSelection === 'UNDER' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 hover:border-purple-300'
+                }`}
+                onClick={() => handlePropOUSelect(pickType, 'UNDER')}
+                disabled={gameLocked}
+              >
+                UNDER ({selectedProp.under_price! > 0 ? '+' : ''}{selectedProp.under_price})
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // No prop selected - show search dropdown
+    return (
+      <div className={`border rounded-lg p-4 shadow-md relative ${gameLocked ? 'bg-gray-50' : 'bg-white'}`}>
+        <h4 className={`font-semibold mb-3 ${gameLocked ? 'text-gray-500' : 'text-gray-900'}`}>Prop {propNumber}</h4>
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search props (e.g., 'Walker rush', 'anytime TD')..."
+            value={isDropdownOpen ? propSearch : ''}
+            onChange={(e) => setPropSearch(e.target.value)}
+            onFocus={() => setShowPropDropdown(pickType)}
+            disabled={gameLocked}
+            className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
+              gameLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+            }`}
+          />
+          {isDropdownOpen && (
+            <>
+              {/* Backdrop to close dropdown */}
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => {
+                  setShowPropDropdown(null);
+                  setPropSearch('');
+                }}
+              />
+              {/* Dropdown - grouped by category */}
+              <div className="absolute z-20 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                {filteredProps.length === 0 ? (
+                  <div className="p-3 text-gray-500 text-sm">No props found</div>
+                ) : (
+                  sortedMarkets.map(market => (
+                    <div key={market}>
+                      {/* Category Header */}
+                      <div className="sticky top-0 bg-purple-100 px-3 py-2 text-xs font-bold text-purple-800 uppercase tracking-wide border-b border-purple-200">
+                        {market}
+                      </div>
+                      {/* Props in this category */}
+                      {groupedProps[market].map(prop => (
+                        <div
+                          key={prop.id}
+                          className="p-3 hover:bg-purple-50 cursor-pointer border-b last:border-b-0"
+                          onClick={() => handlePropSelect(pickType, prop)}
+                        >
+                          <div className="font-medium text-gray-900">{prop.player}</div>
+                          <div className="text-sm text-purple-600 font-medium">
+                            {prop.type === 'yes_no' ? (
+                              `YES (${prop.price! > 0 ? '+' : ''}${prop.price})`
+                            ) : (
+                              `O/U ${prop.line} (${prop.over_price! > 0 ? '+' : ''}${prop.over_price}/${prop.under_price! > 0 ? '+' : ''}${prop.under_price})`
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {/* Game Header */}
+      <div className="text-white rounded-lg p-6 mb-6" style={{ background: 'linear-gradient(to right, #69BE28, #002244)' }}>
+        <div className="text-center">
+          <h3 className="text-2xl font-bold mb-2">Super Bowl LX</h3>
+          <div className="flex items-center justify-center space-x-4">
+            {getTeamLogo(game.away) && (
+              <img src={getTeamLogo(game.away)} alt={game.away} className="w-16 h-16 object-contain" />
+            )}
+            <div className="text-xl font-semibold">
+              {getMascotName(game.away)} @ {getMascotName(game.home)}
+            </div>
+            {getTeamLogo(game.home) && (
+              <img src={getTeamLogo(game.home)} alt={game.home} className="w-16 h-16 object-contain" />
+            )}
+          </div>
+          <p className="mt-2 text-blue-100">{formatGameTime(game.kickoff_et)}</p>
+          {gameLocked && (
+            <div className="mt-2 bg-red-500 text-white px-3 py-1 rounded-full inline-block text-sm font-medium">
+              LOCKED
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Instructions */}
+      {!selectedUser ? (
+        <p className="text-sm text-red-600 font-medium mb-6">
+          Please select your name from the dropdown above before making picks
+        </p>
+      ) : (
+        <p className="text-sm text-gray-600 mb-6">
+          Make 4 picks: Full Game Spread, Full Game O/U, 1st Half Spread, 1st Half O/U
+        </p>
+      )}
+
+      {/* Full Game Picks */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          Full Game
+          <span className={`ml-2 text-sm font-normal ${picks['spread'] && picks['total'] ? 'text-green-600' : 'text-orange-600'}`}>
+            ({(picks['spread'] ? 1 : 0) + (picks['total'] ? 1 : 0)}/2)
+          </span>
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {renderSpreadPick('Game Spread', 'spread', game.spread_away, game.spread_home)}
+          {renderTotalPick('Game Total', 'total', game.total)}
+        </div>
+      </div>
+
+      {/* First Half Picks */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          First Half
+          <span className={`ml-2 text-sm font-normal ${picks['spread_h1'] && picks['total_h1'] ? 'text-green-600' : 'text-orange-600'}`}>
+            ({(picks['spread_h1'] ? 1 : 0) + (picks['total_h1'] ? 1 : 0)}/2)
+          </span>
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {game.spread_h1_away !== undefined && game.spread_h1_home !== undefined ? (
+            renderSpreadPick('1st Half Spread', 'spread_h1', game.spread_h1_away, game.spread_h1_home)
+          ) : (
+            <div className="border rounded-lg p-4 bg-gray-50 text-gray-500">1st Half Spread: Coming Soon</div>
+          )}
+          {game.total_h1 !== undefined ? (
+            renderTotalPick('1st Half Total', 'total_h1', game.total_h1)
+          ) : (
+            <div className="border rounded-lg p-4 bg-gray-50 text-gray-500">1st Half Total: Coming Soon</div>
+          )}
+        </div>
+      </div>
+
+      {/* Prop Bets Section */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          Prop Bets
+          <span className={`ml-2 text-sm font-normal ${isPropPickComplete('prop1') && isPropPickComplete('prop2') ? 'text-green-600' : 'text-orange-600'}`}>
+            ({(isPropPickComplete('prop1') ? 1 : 0) + (isPropPickComplete('prop2') ? 1 : 0)}/2)
+          </span>
+        </h3>
+        <p className="text-sm text-gray-600 mb-2">Search and select any 2 prop bets (must be -120 or better)</p>
+        <p className="text-xs text-gray-500 italic mb-4">Note: Picks are judged only on correctness — no extra credit for longer odds!</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Prop 1 */}
+          {renderPropPicker('prop1')}
+          {/* Prop 2 */}
+          {renderPropPicker('prop2')}
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <button
+        onClick={handleSave}
+        disabled={!selectedUser || !allPicksComplete || (hasExistingPicks && !arePicksModified())}
+        className={`w-full py-3 px-4 rounded-md text-lg font-semibold ${
+          !selectedUser || !allPicksComplete
+            ? 'bg-gray-400 text-white cursor-not-allowed'
+            : hasExistingPicks && !arePicksModified()
+              ? 'bg-green-600 text-white cursor-not-allowed'
+              : 'bg-green-600 text-white hover:bg-green-700'
+        }`}
+      >
+        {getButtonText()}
+      </button>
+      {selectedUser && !allPicksComplete && (
+        <p className="text-sm text-orange-600 mt-2 text-center">
+          Complete all 6 picks to save ({completedPicks}/6 selected)
+        </p>
+      )}
     </div>
   );
 }
@@ -1702,142 +2415,142 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
         </div>
       </div>
 
-      {/* Spread Picks Table */}
-      <div className="mb-6">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">Spread Picks</h4>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
-                  User
-                </th>
-                {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => (
-                  <th key={game.id} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div>{game.awayMascot}</div>
-                    <div className="text-gray-400">@</div>
-                    <div>{game.homeMascot}</div>
-                  </th>
-                ))}
-                <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {users.map(user => {
-                const userPick = playoffPicks.find(p => p.userId === user.id);
-                const totals = getUserTotals(user.id);
-
-                return (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white">
-                      {user.name}
-                    </td>
-                    {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => {
-                      // Only show spread picks (not total picks)
-                      const pick = userPick?.picks.find(p => p.gameId === game.id && (!p.pickType || p.pickType === 'spread'));
-
-                      if (!pick) {
-                        return (
-                          <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center text-sm text-gray-400">
-                            -
-                          </td>
-                        );
-                      }
-
-                      const isCorrect = pick.correct === true;
-                      const isIncorrect = pick.correct === false;
-                      const isPush = pick.correct === null;
-
-                      return (
-                        <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center">
-                          <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
-                            isCorrect ? 'bg-green-100 text-green-800' :
-                            isIncorrect ? 'bg-red-100 text-red-800' :
-                            isPush ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {getAbbreviation(pick.team)}
-                            {pick.spread > 0 ? ` +${pick.spread}` : ` ${pick.spread}`}
-                          </span>
-                        </td>
-                      );
-                    })}
-                    <td className="px-3 py-4 whitespace-nowrap text-center text-sm font-bold">
-                      {totals.total > 0 ? (
-                        <span className={totals.correct > 0 ? 'text-green-600' : 'text-gray-600'}>
-                          {totals.correct}/{totals.total}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Over/Under Picks Table - Only show if there are any O/U picks */}
-      {(hasAnyTotalPicks || selectedWeek >= 101) && (
-        <div>
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">Over/Under Picks</h4>
+      {/* Super Bowl: Single consolidated table with all 6 picks per user */}
+      {selectedWeek === 103 ? (
+        <div className="mb-6">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-blue-50">
+              <thead style={{ background: 'linear-gradient(to right, #69BE28, #002244)' }}>
                 <tr>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-blue-50 z-10">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-white uppercase tracking-wider sticky left-0 z-10" style={{ background: '#69BE28' }}>
                     User
                   </th>
-                  {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => (
-                    <th key={`ou-${game.id}`} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <div>{game.awayMascot} @ {game.homeMascot}</div>
-                      <div className="text-blue-600">O/U {game.total}</div>
-                    </th>
-                  ))}
+                  <th className="px-3 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">
+                    Spread
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">
+                    O/U
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">
+                    1H Spread
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">
+                    1H O/U
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">
+                    Prop 1
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">
+                    Prop 2
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-white uppercase tracking-wider" style={{ background: '#002244' }}>
+                    Total
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {users.map(user => {
                   const userPick = playoffPicks.find(p => p.userId === user.id);
+                  const totals = getUserTotals(user.id);
+
+                  // Get all 6 picks
+                  const game = gameMatchups[0]; // Super Bowl only has 1 game
+                  const spreadPick = userPick?.picks.find(p => p.gameId === game?.id && (!p.pickType || p.pickType === 'spread'));
+                  const totalPick = userPick?.picks.find(p => p.gameId === game?.id && p.pickType === 'total');
+                  const spreadH1Pick = userPick?.picks.find(p => p.pickType === 'spread_h1');
+                  const totalH1Pick = userPick?.picks.find(p => p.pickType === 'total_h1');
+                  const prop1Pick = userPick?.picks.find(p => p.pickType === 'prop1');
+                  const prop2Pick = userPick?.picks.find(p => p.pickType === 'prop2');
+
+                  const renderSpreadPick = (pick: typeof spreadPick) => {
+                    if (!pick) return <span className="text-gray-400">-</span>;
+                    const isCorrect = pick.correct === true;
+                    const isIncorrect = pick.correct === false;
+                    const isPush = pick.correct === null;
+                    return (
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
+                        isCorrect ? 'bg-green-100 text-green-800' :
+                        isIncorrect ? 'bg-red-100 text-red-800' :
+                        isPush ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {getAbbreviation(pick.team)}
+                        {pick.spread > 0 ? ` +${pick.spread}` : ` ${pick.spread}`}
+                      </span>
+                    );
+                  };
+
+                  const renderTotalPick = (pick: typeof totalPick) => {
+                    if (!pick) return <span className="text-gray-400">-</span>;
+                    const isCorrect = pick.correct === true;
+                    const isIncorrect = pick.correct === false;
+                    const isPush = pick.correct === null;
+                    return (
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
+                        isCorrect ? 'bg-green-100 text-green-800' :
+                        isIncorrect ? 'bg-red-100 text-red-800' :
+                        isPush ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {pick.team} {pick.spread}
+                      </span>
+                    );
+                  };
+
+                  const renderPropPick = (pick: typeof prop1Pick) => {
+                    if (!pick) return <span className="text-gray-400">-</span>;
+                    const isCorrect = pick.correct === true;
+                    const isIncorrect = pick.correct === false;
+                    let displayText = pick.team;
+                    if (pick.propSelection && pick.propSelection !== 'YES') {
+                      displayText = `${pick.propSelection}: ${pick.team}`;
+                    }
+                    if (displayText.length > 25) {
+                      displayText = displayText.substring(0, 22) + '...';
+                    }
+                    return (
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
+                        isCorrect ? 'bg-green-100 text-green-800' :
+                        isIncorrect ? 'bg-red-100 text-red-800' :
+                        'bg-purple-100 text-purple-800'
+                      }`} title={pick.team}>
+                        {displayText}
+                      </span>
+                    );
+                  };
 
                   return (
-                    <tr key={`ou-${user.id}`} className="hover:bg-gray-50">
+                    <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white">
                         {user.name}
                       </td>
-                      {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => {
-                        // Only show total picks
-                        const pick = userPick?.picks.find(p => p.gameId === game.id && p.pickType === 'total');
-
-                        if (!pick) {
-                          return (
-                            <td key={`ou-${game.id}`} className="px-3 py-4 whitespace-nowrap text-center text-sm text-gray-400">
-                              -
-                            </td>
-                          );
-                        }
-
-                        const isCorrect = pick.correct === true;
-                        const isIncorrect = pick.correct === false;
-                        const isPush = pick.correct === null;
-
-                        return (
-                          <td key={`ou-${game.id}`} className="px-3 py-4 whitespace-nowrap text-center">
-                            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
-                              isCorrect ? 'bg-green-100 text-green-800' :
-                              isIncorrect ? 'bg-red-100 text-red-800' :
-                              isPush ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-blue-100 text-blue-800'
-                            }`}>
-                              {pick.team} {pick.spread}
-                            </span>
-                          </td>
-                        );
-                      })}
+                      <td className="px-3 py-4 whitespace-nowrap text-center">
+                        {renderSpreadPick(spreadPick)}
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-center">
+                        {renderTotalPick(totalPick)}
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-center">
+                        {renderSpreadPick(spreadH1Pick)}
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-center">
+                        {renderTotalPick(totalH1Pick)}
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-center">
+                        {renderPropPick(prop1Pick)}
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-center">
+                        {renderPropPick(prop2Pick)}
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-center text-sm font-bold">
+                        {totals.total > 0 ? (
+                          <span className={totals.correct > 0 ? 'text-green-600' : 'text-gray-600'}>
+                            {totals.correct}/{totals.total}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -1845,6 +2558,151 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
             </table>
           </div>
         </div>
+      ) : (
+        <>
+          {/* Non-Super Bowl: Original spread and O/U tables */}
+          <div className="mb-6">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Spread Picks</h4>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                      User
+                    </th>
+                    {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => (
+                      <th key={game.id} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div>{game.awayMascot}</div>
+                        <div className="text-gray-400">@</div>
+                        <div>{game.homeMascot}</div>
+                      </th>
+                    ))}
+                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {users.map(user => {
+                    const userPick = playoffPicks.find(p => p.userId === user.id);
+                    const totals = getUserTotals(user.id);
+
+                    return (
+                      <tr key={user.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white">
+                          {user.name}
+                        </td>
+                        {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => {
+                          const pick = userPick?.picks.find(p => p.gameId === game.id && (!p.pickType || p.pickType === 'spread'));
+
+                          if (!pick) {
+                            return (
+                              <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center text-sm text-gray-400">
+                                -
+                              </td>
+                            );
+                          }
+
+                          const isCorrect = pick.correct === true;
+                          const isIncorrect = pick.correct === false;
+                          const isPush = pick.correct === null;
+
+                          return (
+                            <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center">
+                              <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
+                                isCorrect ? 'bg-green-100 text-green-800' :
+                                isIncorrect ? 'bg-red-100 text-red-800' :
+                                isPush ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {getAbbreviation(pick.team)}
+                                {pick.spread > 0 ? ` +${pick.spread}` : ` ${pick.spread}`}
+                              </span>
+                            </td>
+                          );
+                        })}
+                        <td className="px-3 py-4 whitespace-nowrap text-center text-sm font-bold">
+                          {totals.total > 0 ? (
+                            <span className={totals.correct > 0 ? 'text-green-600' : 'text-gray-600'}>
+                              {totals.correct}/{totals.total}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Over/Under Picks Table - Only show if there are any O/U picks */}
+          {(hasAnyTotalPicks || selectedWeek >= 101) && (
+            <div className="mb-6">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Over/Under Picks</h4>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-blue-50">
+                    <tr>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-blue-50 z-10">
+                        User
+                      </th>
+                      {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => (
+                        <th key={`ou-${game.id}`} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <div>{game.awayMascot} @ {game.homeMascot}</div>
+                          <div className="text-blue-600">O/U {game.total}</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {users.map(user => {
+                      const userPick = playoffPicks.find(p => p.userId === user.id);
+
+                      return (
+                        <tr key={`ou-${user.id}`} className="hover:bg-gray-50">
+                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white">
+                            {user.name}
+                          </td>
+                          {gameMatchups.map((game: { id: string; away: string; home: string; total: number; awayAbbr: string; homeAbbr: string; awayMascot: string; homeMascot: string }) => {
+                            const pick = userPick?.picks.find(p => p.gameId === game.id && p.pickType === 'total');
+
+                            if (!pick) {
+                              return (
+                                <td key={`ou-${game.id}`} className="px-3 py-4 whitespace-nowrap text-center text-sm text-gray-400">
+                                  -
+                                </td>
+                              );
+                            }
+
+                            const isCorrect = pick.correct === true;
+                            const isIncorrect = pick.correct === false;
+                            const isPush = pick.correct === null;
+
+                            return (
+                              <td key={`ou-${game.id}`} className="px-3 py-4 whitespace-nowrap text-center">
+                                <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
+                                  isCorrect ? 'bg-green-100 text-green-800' :
+                                  isIncorrect ? 'bg-red-100 text-red-800' :
+                                  isPush ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {pick.team} {pick.spread}
+                                </span>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

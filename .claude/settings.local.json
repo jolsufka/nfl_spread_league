@@ -18,7 +18,16 @@
       "Bash(python:*)",
       "Bash(grep:*)",
       "Bash(curl:*)",
-      "Bash(ping:*)"
+      "Bash(ping:*)",
+      "Bash(timeout 10 npm start)",
+      "Skill(spread-analysis)",
+      "Skill(spread-analysis:*)",
+      "Skill(nfl-results-processor)",
+      "Skill(nfl-results-processor:*)",
+      "Bash(git stash show:*)",
+      "Bash(nslookup:*)",
+      "Skill(nfl-week-setup)",
+      "Skill(nfl-week-setup:*)"
     ],
     "deny": [],
     "ask": []
