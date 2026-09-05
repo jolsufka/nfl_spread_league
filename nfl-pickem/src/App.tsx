@@ -3,6 +3,10 @@ import Papa from 'papaparse';
 import { supabase } from './supabase';
 import * as yaml from 'js-yaml';
 
+// All reads and writes are scoped to this season; prior seasons stay in the
+// table untouched (see supabase/migrations/20260905_season_2026_foundation.sql)
+export const CURRENT_SEASON = 2026;
+
 interface Game {
   id: string;
   kickoff_et: string;
@@ -32,6 +36,7 @@ interface TeamPick {
   team: string; // team name selected, or "OVER"/"UNDER" for totals, or prop description
   spread: number; // spread for the selected team, or total line for O/U, or prop line
   correct?: boolean; // whether this pick was correct (optional, for future use)
+  result?: 'W' | 'L' | 'P' | null; // graded result; 'P' = push, NULL = not graded yet
   pickType?: 'spread' | 'total' | 'spread_h1' | 'total_h1' | 'prop1' | 'prop2'; // type of pick (defaults to 'spread' for backwards compatibility)
   propId?: string; // ID of the prop bet (for prop picks only)
   propSelection?: 'OVER' | 'UNDER' | 'YES'; // selection for prop bet
@@ -237,7 +242,9 @@ function App() {
       const { data, error } = await supabase
         .from('picks')
         .select('*')
-        .order('week', { ascending: true });
+        .eq('season', CURRENT_SEASON)
+        .order('week', { ascending: true })
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
 
@@ -292,6 +299,7 @@ function App() {
           team: team,
           spread: pick.spread,
           correct: pick.correct,
+          result: pick.result,
           pickType: pickType,
           propId: propId,
           propSelection: propSelection
@@ -315,14 +323,17 @@ function App() {
 
   const savePicks = async (userId: string, week: number, selectedPicks: TeamPick[]) => {
     try {
-      // First, delete any existing picks for this user/week
-      await supabase
+      // Note the ids of the picks being replaced. New picks are inserted BEFORE
+      // the old ones are deleted so a failed insert can never wipe existing picks.
+      const { data: existingRows, error: fetchError } = await supabase
         .from('picks')
-        .delete()
+        .select('id')
         .eq('user_id', userId)
-        .eq('week', week);
+        .eq('week', week)
+        .eq('season', CURRENT_SEASON);
+      if (fetchError) throw fetchError;
 
-      // Then insert the new picks
+      // Insert the new picks
       // game_id format based on pickType:
       //   spread: gameId (e.g., "playoff-1")
       //   total: gameId-ou (e.g., "playoff-1-ou")
@@ -367,6 +378,7 @@ function App() {
         return {
           user_id: userId,
           week: week,
+          season: CURRENT_SEASON,
           game_id: game_id,
           team: team,
           spread: pick.spread,
@@ -379,6 +391,15 @@ function App() {
         .insert(pickRecords);
 
       if (error) throw error;
+
+      // Remove the replaced picks now that the new ones are safely stored
+      if (existingRows && existingRows.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('picks')
+          .delete()
+          .in('id', existingRows.map(row => row.id));
+        if (deleteError) throw deleteError;
+      }
 
       // Reload picks to update UI
       await loadPicks();
