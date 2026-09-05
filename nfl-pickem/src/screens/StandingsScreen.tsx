@@ -232,6 +232,7 @@ export default function StandingsScreen({
           create={(el, config) => ChartFactory.Line.createMulti(el, config)}
           config={{
             series: trendSeries,
+            maxHeight: 520,
             seriesLabels: true,
             endDots: true,
             legend: {
