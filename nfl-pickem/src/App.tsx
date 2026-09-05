@@ -34,6 +34,23 @@ const initialTheme = (): 'light' | 'dark' => {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 };
 
+// Hash routing (GitHub Pages friendly): #/week, #/standings, #/2025/standings
+const VIEW_KEYS: ViewKey[] = ['week', 'picks', 'standings', 'stats'];
+
+const parseHash = (): { season: number | null; view: ViewKey | null } => {
+  const parts = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  let season: number | null = null;
+  let view: ViewKey | null = null;
+  for (const part of parts) {
+    if (/^\d{4}$/.test(part)) season = parseInt(part, 10);
+    else if (VIEW_KEYS.includes(part as ViewKey)) view = part as ViewKey;
+  }
+  return { season, view };
+};
+
+const buildHash = (view: ViewKey, season: number, currentSeason: number) =>
+  season === currentSeason ? `#/${view}` : `#/${season}/${view}`;
+
 interface PropBet {
   id: string;
   market: string;
@@ -63,8 +80,10 @@ function App() {
   const [selectedUser, setSelectedUser] = useState<string>(
     () => localStorage.getItem('nfl-pickem-user') || ''
   );
-  const [view, setView] = useState<ViewKey>('week');
-  const [viewSeason, setViewSeason] = useState<number>(seasonConfig.season);
+  const [view, setView] = useState<ViewKey>(() => parseHash().view ?? 'week');
+  const [viewSeason, setViewSeason] = useState<number>(
+    () => parseHash().season ?? seasonConfig.season
+  );
   const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme);
   const [mode, setMode] = useState<'regular' | 'playoffs'>('regular');
   const [playoffGames, setPlayoffGames] = useState<Game[]>([]);
@@ -85,7 +104,7 @@ function App() {
       const week = computeCurrentWeek(config);
       setCurrentWeek(week);
       setMode(config.mode);
-      setViewSeason(config.season);
+      setViewSeason(parseHash().season ?? config.season);
       const round = config.playoffRound ?? config.playoffRounds[0]?.week ?? 100;
       setPlayoffWeek(round);
 
@@ -104,6 +123,22 @@ function App() {
     loadPicks(viewSeason);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewSeason]);
+
+  // URL <-> state: tabs and seasons live in the hash (#/standings, #/2025/standings)
+  useEffect(() => {
+    const desired = buildHash(view, viewSeason, seasonConfig.season);
+    if (window.location.hash !== desired) window.location.hash = desired;
+  }, [view, viewSeason]);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const { season, view: hashView } = parseHash();
+      setViewSeason(season ?? seasonConfig.season);
+      if (hashView) setView(hashView);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   const loadGames = async (week: number) => {
     try {
