@@ -1,5 +1,13 @@
 # nfl_week_lines.py
-import os, sys, argparse, datetime as dt, pytz, requests, pandas as pd
+import os, sys, argparse, datetime as dt, time, pytz, requests, pandas as pd
+
+from season import (
+    load_season_config,
+    current_week,
+    week_window_et,
+    read_api_key,
+    lines_csv_paths,
+)
 
 SPORT = "americanfootball_nfl"
 REGION = "us"                      # US books
@@ -27,7 +35,7 @@ def week_window_from_weeknum(week1_start_et_str: str, week: int):
     end = start + dt.timedelta(days=7, seconds=-1)
     return start, end
 
-def fetch_market(api_key: str, market: str, t_from_iso: str, t_to_iso: str):
+def fetch_market(api_key: str, market: str, t_from_iso: str, t_to_iso: str, retries: int = 3):
     url = f"https://api.the-odds-api.com/v4/sports/{SPORT}/odds"
     params = {
         "regions": REGION,
@@ -37,9 +45,17 @@ def fetch_market(api_key: str, market: str, t_from_iso: str, t_to_iso: str):
         "commenceTimeFrom": t_from_iso,
         "commenceTimeTo": t_to_iso,
     }
-    r = requests.get(url, params=params, timeout=25)
-    r.raise_for_status()
-    return r.json()
+    for attempt in range(retries):
+        try:
+            r = requests.get(url, params=params, timeout=25)
+            r.raise_for_status()
+            return r.json()
+        except requests.RequestException as e:
+            if attempt == retries - 1:
+                raise
+            wait = 10 * (attempt + 1)
+            print(f"{market} fetch failed ({e}); retrying in {wait}s")
+            time.sleep(wait)
 
 def pick_book(books, preferred=PREFERRED_BOOKS):
     by_name = {b["title"]: b for b in books}
@@ -99,65 +115,84 @@ def build_frame(spreads, totals, money):
     if df.empty:
         return df
     df["kickoff_et"] = pd.to_datetime(df["commence_time"], utc=True).dt.tz_convert("America/New_York")
+    df["event_id"] = df["game_id"]  # The Odds API's stable event id
     cols = ["kickoff_et","away","home",
             "spread_away","spread_away_price","spread_home","spread_home_price",
             "total","over_price","under_price",
             "ml_away","ml_home",
-            "spreads_book","totals_book","h2h_book"]
+            "spreads_book","totals_book","h2h_book","event_id"]
     for c in cols:
         if c not in df.columns:
             df[c] = None
-    return df[cols].sort_values("kickoff_et").reset_index(drop=True)
+    df = df[cols].sort_values("kickoff_et").reset_index(drop=True)
+    # Explicit row ids matching the app's game-id convention (row order, 1..N)
+    df.insert(0, "id", [str(i + 1) for i in range(len(df))])
+    return df
 
 def main():
-    ap = argparse.ArgumentParser(description="Fetch NFL odds table for a single week window.")
-    ap.add_argument("--api-key", default=os.getenv("ODDS_API_KEY"),
-                    help="The Odds API key (or set ODDS_API_KEY).")
-    # Option A: pass a calendar start datetime (ET)
-    ap.add_argument("--start-et", help='Week start ET (e.g., "2025-09-02 08:00")')
-    # Option B: season/week style given a known week 1 start
-    ap.add_argument("--week1-start-et", help='NFL Week 1 start ET (e.g., "2025-09-02 08:00")')
-    ap.add_argument("--week", type=int, help="NFL week number (1..postseason as you define)")
-    ap.add_argument("--days", type=int, default=7, help="Length of window in days (default 7).")
-    ap.add_argument("--csv", help="Output CSV path (if not specified, uses nfl_lines_week{N}.csv format).")
+    ap = argparse.ArgumentParser(
+        description="Fetch NFL lines for a week. Week timing comes from "
+                    "nfl-pickem/public/season.json; the CSV is written to both "
+                    "data/lines/ and nfl-pickem/public/lines/."
+    )
+    ap.add_argument("--api-key", default=None,
+                    help="The Odds API key (default: ODDS_API_KEY env or .keys/odds_api_key)")
+    ap.add_argument("--week", type=int, default=None,
+                    help="NFL week number (default: current week from season.json)")
+    ap.add_argument("--start-et", help='Override window start ET (e.g. "2026-09-08 08:00")')
+    ap.add_argument("--days", type=int, default=7, help="Window length in days (default 7)")
+    ap.add_argument("--csv", help="Override output path (skips the public/ copy)")
+    ap.add_argument("--force", action="store_true",
+                    help="Overwrite an existing lines file (changes spreads users picked against!)")
+    ap.add_argument("--skip-if-exists", action="store_true",
+                    help="Exit 0 quietly if the lines file already exists (for scheduled runs)")
     args = ap.parse_args()
 
-    if not args.api_key:
-        sys.exit("Missing API key. Use --api-key or set ODDS_API_KEY.")
+    api_key = args.api_key or read_api_key("ODDS_API_KEY", "odds_api_key")
+    config = load_season_config()
 
     tz = pytz.timezone("America/New_York")
     if args.start_et:
         start = tz.localize(dt.datetime.strptime(args.start_et, "%Y-%m-%d %H:%M"))
         end = start + dt.timedelta(days=args.days, seconds=-1)
-        week_num = None
-    elif args.week1_start_et and args.week:
-        start, end = week_window_from_weeknum(args.week1_start_et, args.week)
         week_num = args.week
     else:
-        sys.exit("Provide either --start-et OR (--week1-start-et AND --week).")
+        week_num = args.week if args.week is not None else current_week(config)
+        start, end = week_window_et(week_num, config)
 
-    # Auto-generate CSV filename if not provided
-    if not args.csv:
-        if week_num:
-            args.csv = f"data/lines/nfl_lines_week{week_num}.csv"
-        else:
-            args.csv = "data/lines/nfl_lines_week.csv"
+    if args.csv:
+        outputs = [args.csv]
+    elif week_num:
+        archive_path, public_path = lines_csv_paths(week_num)
+        outputs = [archive_path, public_path]
+    else:
+        sys.exit("Provide --week (or --csv) when using --start-et.")
+
+    existing = [str(p) for p in outputs if os.path.exists(p)]
+    if existing and not args.force:
+        if args.skip_if_exists:
+            print(f"Lines already fetched ({existing[0]}); nothing to do.")
+            return
+        sys.exit(
+            "Refusing to overwrite existing lines (picks may reference them): "
+            + ", ".join(existing) + "\nUse --force to refetch."
+        )
 
     t_from = iso_z(start)
     t_to   = iso_z(end)
 
-    # fetch each market within the window
-    spreads = fetch_market(args.api_key, "spreads", t_from, t_to)
-    totals  = fetch_market(args.api_key, "totals",  t_from, t_to)
-    money   = fetch_market(args.api_key, "h2h",     t_from, t_to)
+    spreads = fetch_market(api_key, "spreads", t_from, t_to)
+    totals  = fetch_market(api_key, "totals",  t_from, t_to)
+    money   = fetch_market(api_key, "h2h",     t_from, t_to)
 
     df = build_frame(spreads, totals, money)
     if df.empty:
-        print("No games/odds in that window.")
-        return
-    print(df.to_string(index=False))
-    df.to_csv(args.csv, index=False)
-    print(f"\nSaved: {args.csv}")
+        sys.exit(f"No games/odds between {start} and {end} — wrong week or season.json?")
+    print(df[["id","kickoff_et","away","home","spread_away","spread_home","total"]].to_string(index=False))
+    for out in outputs:
+        os.makedirs(os.path.dirname(str(out)) or ".", exist_ok=True)
+        df.to_csv(out, index=False)
+        print(f"Saved: {out}")
 
 if __name__ == "__main__":
     main()

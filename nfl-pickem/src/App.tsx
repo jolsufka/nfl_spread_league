@@ -2,10 +2,15 @@ import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import { supabase } from './supabase';
 import * as yaml from 'js-yaml';
-
-// All reads and writes are scoped to this season; prior seasons stay in the
-// table untouched (see supabase/migrations/20260905_season_2026_foundation.sql)
-export const CURRENT_SEASON = 2026;
+import {
+  seasonConfig,
+  loadSeasonConfig,
+  computeCurrentWeek,
+  getPlayoffRound,
+  playoffWeekName,
+  isPlayoffWeek,
+  calcRecord,
+} from './seasonConfig';
 
 interface Game {
   id: string;
@@ -68,6 +73,47 @@ interface User {
   percentage: number;
 }
 
+// Shared team helpers (single source — was duplicated in three components)
+const TEAM_LOGOS: { [key: string]: string } = {
+  'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
+  'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
+  'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
+  'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
+  'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
+  'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
+  'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
+  'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
+  'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
+  'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
+  'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
+  'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
+  'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
+  'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
+  'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
+  'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
+  'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
+  'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
+  'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
+  'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
+  'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
+  'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
+  'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
+  'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
+  'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
+  'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
+  'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
+  'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
+  'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
+  'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
+  'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
+  'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
+};
+
+const getTeamLogo = (teamName: string) => TEAM_LOGOS[teamName] || '';
+
+// Extract just the mascot (last word) from full team name
+const getMascotName = (teamName: string) => teamName.split(' ').slice(-1)[0];
+
 function App() {
   const [games, setGames] = useState<Game[]>([]);
   const [users] = useState<User[]>([
@@ -80,7 +126,7 @@ function App() {
     { id: 'john', name: 'John', total: 0, percentage: 0 },
   ]);
   const [picks, setPicks] = useState<Pick[]>([]);
-  const [currentWeek, setCurrentWeek] = useState(19);
+  const [currentWeek, setCurrentWeek] = useState(() => computeCurrentWeek());
   const [selectedUser, setSelectedUser] = useState<string>(() => {
     // Check localStorage for previously selected user
     const savedUser = localStorage.getItem('nfl-pickem-user');
@@ -88,25 +134,40 @@ function App() {
   });
   const [activeTab, setActiveTab] = useState<'picks' | 'leaderboard' | 'chart' | 'history' | 'insights' | 'nfl-trends'>('leaderboard');
   const [playoffTab, setPlayoffTab] = useState<'picks' | 'chart' | 'leaderboard'>('picks');
-  const [mode, setMode] = useState<'regular' | 'playoffs'>('playoffs'); // Default to playoffs since we're in playoff season
+  const [mode, setMode] = useState<'regular' | 'playoffs'>('regular');
   const [playoffGames, setPlayoffGames] = useState<Game[]>([]);
-  const [playoffWeek, setPlayoffWeek] = useState(103); // 100 = Wild Card, 101 = Divisional, 102 = Conference, 103 = Super Bowl
+  const [playoffWeek, setPlayoffWeek] = useState(100); // 100 = Wild Card, 101 = Divisional, 102 = Conference, 103 = Super Bowl
   const [teamAbbreviations, setTeamAbbreviations] = useState<{[key: string]: string}>({});
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
 
   useEffect(() => {
-    // Load games from CSV (we'll create this from your odds script)
-    loadGames();
-    loadPlayoffGames(playoffWeek);
-    loadPicks();
-    loadTeamAbbreviations();
-    loadWeatherData();
-  }, []);
+    // Config first — everything else derives from it (season, week, mode)
+    const init = async () => {
+      const config = await loadSeasonConfig();
+      const week = computeCurrentWeek(config);
+      setCurrentWeek(week);
+      setMode(config.mode);
+      const round = config.playoffRound ?? config.playoffRounds[0]?.week ?? 100;
+      setPlayoffWeek(round);
 
-  const loadGames = async () => {
+      loadGames(week);
+      if (config.mode === 'playoffs') {
+        loadPlayoffGames(round);
+      }
+      loadPicks();
+      loadTeamAbbreviations();
+      loadWeatherData();
+    };
+    init();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadGames = async (week: number) => {
     try {
-      // Load games from CSV file generated by the odds script
-      const response = await fetch(`${process.env.PUBLIC_URL}/lines/nfl_lines_week18.csv`);
+      // Lines file is derived from the week — no hand-edited filenames
+      const response = await fetch(`${process.env.PUBLIC_URL}/lines/nfl_lines_week${week}.csv`);
+      if (!response.ok) {
+        throw new Error(`Lines CSV for week ${week} returned HTTP ${response.status}`);
+      }
       const csvText = await response.text();
       
       Papa.parse(csvText, {
@@ -127,34 +188,28 @@ function App() {
         },
         error: (error: any) => {
           console.error('Error parsing CSV:', error);
-          // Fallback to sample data if CSV fails to load
-          loadSampleGames();
+          setGames([]);
         }
       });
     } catch (error) {
       console.error('Error loading CSV file:', error);
-      // Fallback to sample data if CSV fails to load
-      loadSampleGames();
+      setGames([]);
     }
   };
 
-  const loadSampleGames = () => {
-    // Fallback if CSV fails to load - should not happen in production
-    console.error('Failed to load games from CSV');
-    setGames([]);
-  };
-
-  const loadPlayoffGames = async (week: number = 102) => {
+  const loadPlayoffGames = async (week: number) => {
     try {
-      // Load playoff games from CSV file based on current playoff week
-      const playoffFiles: { [key: number]: string } = {
-        100: 'nfl_playoff_wildcard.csv',
-        101: 'nfl_playoff_divisional.csv',
-        102: 'nfl_playoff_conference.csv',
-        103: 'nfl_playoff_superbowl.csv'
-      };
-      const filename = playoffFiles[week] || 'nfl_playoff_conference.csv';
-      const response = await fetch(`${process.env.PUBLIC_URL}/lines/${filename}`);
+      // Round → lines file mapping lives in season.json
+      const round = getPlayoffRound(week);
+      if (!round) {
+        console.error(`No playoff round configured for week ${week}`);
+        setPlayoffGames([]);
+        return;
+      }
+      const response = await fetch(`${process.env.PUBLIC_URL}/lines/${round.linesFile}`);
+      if (!response.ok) {
+        throw new Error(`${round.linesFile} returned HTTP ${response.status}`);
+      }
       const csvText = await response.text();
 
       Papa.parse(csvText, {
@@ -242,7 +297,7 @@ function App() {
       const { data, error } = await supabase
         .from('picks')
         .select('*')
-        .eq('season', CURRENT_SEASON)
+        .eq('season', seasonConfig.season)
         .order('week', { ascending: true })
         .order('created_at', { ascending: true });
 
@@ -330,7 +385,7 @@ function App() {
         .select('id')
         .eq('user_id', userId)
         .eq('week', week)
-        .eq('season', CURRENT_SEASON);
+        .eq('season', seasonConfig.season);
       if (fetchError) throw fetchError;
 
       // Insert the new picks
@@ -378,7 +433,7 @@ function App() {
         return {
           user_id: userId,
           week: week,
-          season: CURRENT_SEASON,
+          season: seasonConfig.season,
           game_id: game_id,
           team: team,
           spread: pick.spread,
@@ -420,22 +475,14 @@ function App() {
     return picks.find(p => p.userId === selectedUser && p.week === playoffWeek);
   };
 
-  const getPlayoffWeekName = (week: number) => {
-    switch (week) {
-      case 100: return 'Wild Card';
-      case 101: return 'Divisional';
-      case 102: return 'Conference';
-      case 103: return 'Super Bowl';
-      default: return 'Playoffs';
-    }
-  };
+  const getPlayoffWeekName = (week: number) => playoffWeekName(week);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-4">
           <h1 className="text-4xl font-bold text-gray-900">
-            2025-26 NFL Spread Pick-Em
+            {seasonConfig.title}
           </h1>
         </div>
 
@@ -472,6 +519,7 @@ function App() {
         <div className="mb-8">
           <nav className="flex space-x-4 md:space-x-8 overflow-x-auto pb-2">
             {[
+              { key: 'picks', label: 'Make Picks' },
               { key: 'leaderboard', label: 'Leaderboard' },
               { key: 'chart', label: 'Pick Chart' },
               { key: 'history', label: 'Pick History' },
@@ -869,49 +917,6 @@ function PickInterface({ games, currentPicks, onSavePicks, selectedUser, users, 
     return now >= gameTime;
   };
 
-  const getMascotName = (teamName: string) => {
-    // Extract just the mascot (last word) from full team name
-    return teamName.split(' ').slice(-1)[0];
-  };
-
-  const getTeamLogo = (teamName: string) => {
-    // Simple mapping of team names to logo URLs (using ESPN's logos)
-    const teamLogos: { [key: string]: string } = {
-      'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
-      'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
-      'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
-      'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
-      'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
-      'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
-      'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
-      'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
-      'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
-      'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
-      'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
-      'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
-      'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
-      'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
-      'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
-      'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
-      'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
-      'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
-      'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
-      'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
-      'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
-      'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
-      'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
-      'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
-      'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
-      'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
-      'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
-      'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
-      'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
-      'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
-      'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
-      'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
-    };
-    return teamLogos[teamName] || '';
-  };
 
   return (
     <div>
@@ -1142,9 +1147,9 @@ function PlayoffLeaderboard({ picks, users, playoffWeek }: PlayoffLeaderboardPro
   };
 
   const getUserTotalPicks = (userId: string) => {
-    // Only count graded picks (correct === true or correct === false), not pending picks
+    // Graded picks including pushes — pushes count in the denominator
     return playoffPicks.filter(p => p.userId === userId).reduce((sum, pick) => {
-      return sum + pick.picks.filter(teamPick => teamPick.correct === true || teamPick.correct === false).length;
+      return sum + calcRecord(pick.picks).graded;
     }, 0);
   };
 
@@ -1306,6 +1311,9 @@ function SuperBowlPickInterface({ game, currentPicks, onSavePicks, selectedUser,
     const loadProps = async () => {
       try {
         const response = await fetch(`${process.env.PUBLIC_URL}/lines/superbowl_props.json`);
+        if (!response.ok) {
+          throw new Error(`superbowl_props.json returned HTTP ${response.status}`);
+        }
         const data = await response.json();
         setAvailableProps(data);
       } catch (error) {
@@ -1519,47 +1527,6 @@ function SuperBowlPickInterface({ game, currentPicks, onSavePicks, selectedUser,
     }) + ` ${timezoneAbbr}`;
   };
 
-  const getMascotName = (teamName: string) => {
-    return teamName.split(' ').slice(-1)[0];
-  };
-
-  const getTeamLogo = (teamName: string) => {
-    const teamLogos: { [key: string]: string } = {
-      'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
-      'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
-      'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
-      'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
-      'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
-      'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
-      'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
-      'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
-      'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
-      'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
-      'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
-      'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
-      'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
-      'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
-      'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
-      'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
-      'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
-      'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
-      'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
-      'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
-      'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
-      'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
-      'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
-      'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
-      'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
-      'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
-      'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
-      'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
-      'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
-      'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
-      'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
-      'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
-    };
-    return teamLogos[teamName] || '';
-  };
 
   if (!game) {
     return <div className="text-gray-500">Loading Super Bowl data...</div>;
@@ -2034,47 +2001,6 @@ function PlayoffPickInterface({ games, currentPicks, onSavePicks, selectedUser, 
     return now >= gameTime;
   };
 
-  const getMascotName = (teamName: string) => {
-    return teamName.split(' ').slice(-1)[0];
-  };
-
-  const getTeamLogo = (teamName: string) => {
-    const teamLogos: { [key: string]: string } = {
-      'Dallas Cowboys': 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png',
-      'Philadelphia Eagles': 'https://a.espncdn.com/i/teamlogos/nfl/500/phi.png',
-      'Kansas City Chiefs': 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png',
-      'Los Angeles Chargers': 'https://a.espncdn.com/i/teamlogos/nfl/500/lac.png',
-      'Arizona Cardinals': 'https://a.espncdn.com/i/teamlogos/nfl/500/ari.png',
-      'New Orleans Saints': 'https://a.espncdn.com/i/teamlogos/nfl/500/no.png',
-      'Tampa Bay Buccaneers': 'https://a.espncdn.com/i/teamlogos/nfl/500/tb.png',
-      'Atlanta Falcons': 'https://a.espncdn.com/i/teamlogos/nfl/500/atl.png',
-      'Carolina Panthers': 'https://a.espncdn.com/i/teamlogos/nfl/500/car.png',
-      'Jacksonville Jaguars': 'https://a.espncdn.com/i/teamlogos/nfl/500/jax.png',
-      'Cincinnati Bengals': 'https://a.espncdn.com/i/teamlogos/nfl/500/cin.png',
-      'Cleveland Browns': 'https://a.espncdn.com/i/teamlogos/nfl/500/cle.png',
-      'Miami Dolphins': 'https://a.espncdn.com/i/teamlogos/nfl/500/mia.png',
-      'Indianapolis Colts': 'https://a.espncdn.com/i/teamlogos/nfl/500/ind.png',
-      'Las Vegas Raiders': 'https://a.espncdn.com/i/teamlogos/nfl/500/lv.png',
-      'New England Patriots': 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png',
-      'New York Giants': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png',
-      'Washington Commanders': 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png',
-      'Pittsburgh Steelers': 'https://a.espncdn.com/i/teamlogos/nfl/500/pit.png',
-      'New York Jets': 'https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png',
-      'Tennessee Titans': 'https://a.espncdn.com/i/teamlogos/nfl/500/ten.png',
-      'Denver Broncos': 'https://a.espncdn.com/i/teamlogos/nfl/500/den.png',
-      'San Francisco 49ers': 'https://a.espncdn.com/i/teamlogos/nfl/500/sf.png',
-      'Seattle Seahawks': 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png',
-      'Detroit Lions': 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
-      'Green Bay Packers': 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png',
-      'Houston Texans': 'https://a.espncdn.com/i/teamlogos/nfl/500/hou.png',
-      'Los Angeles Rams': 'https://a.espncdn.com/i/teamlogos/nfl/500/lar.png',
-      'Baltimore Ravens': 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png',
-      'Buffalo Bills': 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png',
-      'Minnesota Vikings': 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png',
-      'Chicago Bears': 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png'
-    };
-    return teamLogos[teamName] || '';
-  };
 
   const canAddMoreTotals = totalPicks.length < games.length;
   const allSpreadsSelected = spreadPicks.length === games.length;
@@ -2330,12 +2256,11 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
   const [selectedWeek, setSelectedWeek] = useState(currentPlayoffWeek);
   const [games, setGames] = useState<Game[]>([]);
 
-  const playoffWeeks = [
-    { week: 100, name: 'Wild Card', file: 'nfl_playoff_wildcard.csv' },
-    { week: 101, name: 'Divisional', file: 'nfl_playoff_divisional.csv' },
-    { week: 102, name: 'Conference', file: 'nfl_playoff_conference.csv' },
-    { week: 103, name: 'Super Bowl', file: 'nfl_playoff_superbowl.csv' }
-  ];
+  const playoffWeeks = seasonConfig.playoffRounds.map(round => ({
+    week: round.week,
+    name: round.name,
+    file: round.linesFile,
+  }));
 
   // Only show weeks up to and including the current playoff week
   const availableWeeks = playoffWeeks.filter(w => w.week <= currentPlayoffWeek);
@@ -2347,6 +2272,9 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
 
       try {
         const response = await fetch(`${process.env.PUBLIC_URL}/lines/${weekInfo.file}`);
+        if (!response.ok) {
+          throw new Error(`${weekInfo.file} returned HTTP ${response.status}`);
+        }
         const csvText = await response.text();
 
         Papa.parse(csvText, {
@@ -2364,6 +2292,10 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
             })).filter((game: Game) => game.away && game.home);
 
             setGames(csvGames);
+          },
+          error: (error: any) => {
+            console.error(`Error parsing ${weekInfo.file}:`, error);
+            setGames([]);
           }
         });
       } catch (error) {
@@ -2377,10 +2309,6 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
 
   const getAbbreviation = (teamName: string) => {
     return teamAbbreviations[teamName] || teamName.substring(0, 3).toUpperCase();
-  };
-
-  const getMascotName = (teamName: string) => {
-    return teamName.split(' ').slice(-1)[0];
   };
 
   // Get picks for the selected playoff week
@@ -2403,11 +2331,9 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
     const userPicks = playoffPicks.find(p => p.userId === userId);
     if (!userPicks) return { correct: 0, total: 0 };
 
-    const gradedPicks = userPicks.picks.filter(p => p.correct !== undefined);
-    const correctPicks = gradedPicks.filter(p => p.correct === true).length;
-    const totalPicks = userPicks.picks.length;
-
-    return { correct: correctPicks, total: totalPicks };
+    // Pushes count in the total, pending picks don't
+    const record = calcRecord(userPicks.picks);
+    return { correct: record.wins, total: record.graded };
   };
 
   // Check if any user has O/U picks for this week
@@ -2487,7 +2413,7 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
                     if (!pick) return <span className="text-gray-400">-</span>;
                     const isCorrect = pick.correct === true;
                     const isIncorrect = pick.correct === false;
-                    const isPush = pick.correct === null;
+                    const isPush = pick.result === 'P';
                     return (
                       <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
                         isCorrect ? 'bg-green-100 text-green-800' :
@@ -2505,7 +2431,7 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
                     if (!pick) return <span className="text-gray-400">-</span>;
                     const isCorrect = pick.correct === true;
                     const isIncorrect = pick.correct === false;
-                    const isPush = pick.correct === null;
+                    const isPush = pick.result === 'P';
                     return (
                       <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
                         isCorrect ? 'bg-green-100 text-green-800' :
@@ -2626,7 +2552,7 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
 
                           const isCorrect = pick.correct === true;
                           const isIncorrect = pick.correct === false;
-                          const isPush = pick.correct === null;
+                          const isPush = pick.result === 'P';
 
                           return (
                             <td key={game.id} className="px-3 py-4 whitespace-nowrap text-center">
@@ -2700,7 +2626,7 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
 
                             const isCorrect = pick.correct === true;
                             const isIncorrect = pick.correct === false;
-                            const isPush = pick.correct === null;
+                            const isPush = pick.result === 'P';
 
                             return (
                               <td key={`ou-${game.id}`} className="px-3 py-4 whitespace-nowrap text-center">
@@ -3004,19 +2930,9 @@ function Leaderboard({ users, picks, currentWeek }: LeaderboardProps) {
   );
 }
 
-interface LeaderboardUser {
-  id: string;
-  name: string;
-  totalCorrect: number;
-  totalPicks: number;
-  percentage: number;
-  last5WeeksPercentage: number;
-  rank: number;
-}
-
 interface CumulativeTrendChartProps {
   picks: Pick[];
-  users: LeaderboardUser[];
+  users: Array<{ id: string; name: string }>;
   currentWeek: number;
 }
 
@@ -3393,12 +3309,12 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
                       {weekPick ? (
                         <div className="text-left">
                           {weekPick.picks.map((pick, idx) => {
-                            const isPending = pick.correct === null || pick.correct === undefined;
-                            
-                            // Check if this is a push (completed game with null result) or truly pending
-                            // If it's a past week and result is null, assume it's a push
-                            const isPush = isPending && weekPick.week < currentWeek;
-                            const isTrulyPending = isPending && !isPush;
+                            // The result column distinguishes pushes ('P') from
+                            // ungraded picks (null) — no week-based guessing
+                            const isPush = pick.result === 'P';
+                            const isTrulyPending = !isPush &&
+                              (pick.result === null || pick.result === undefined) &&
+                              (pick.correct === null || pick.correct === undefined);
                             
                             // Hide all users' picks when game is pending
                             const shouldHidePick = isTrulyPending;
@@ -3480,7 +3396,7 @@ function PickChart({ picks, users, selectedUser, currentWeek, games, teamAbbrevi
 }
 
 function PickHistory({ picks, selectedUser, currentWeek, games }: PickHistoryProps) {
-  const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
+  const weeks = Array.from({ length: seasonConfig.regularSeasonWeeks }, (_, i) => i + 1);
   const userPicks = picks.filter(pick => pick.userId === selectedUser);
   
   const getPickInfo = (pick: TeamPick) => {
@@ -3594,18 +3510,26 @@ function InsightsBeta({ picks, users, games, teamAbbreviations, currentWeek }: I
   
   // Helper function to get all graded team picks (filtered by selected weeks)
   const getAllGradedPicks = () => {
-    const filteredPicks = selectedWeeks === 'all' 
-      ? picks 
-      : picks.filter(userPick => selectedWeeks.includes(userPick.week));
-    
-    return filteredPicks.flatMap(userPick => 
-      userPick.picks.filter(teamPick => teamPick.correct !== null && teamPick.correct !== undefined)
+    // Regular-season picks only; playoff formats (props, O/U) would skew spread analytics
+    const regularSeasonPicks = picks.filter(userPick => !isPlayoffWeek(userPick.week));
+    const filteredPicks = selectedWeeks === 'all'
+      ? regularSeasonPicks
+      : regularSeasonPicks.filter(userPick => selectedWeeks.includes(userPick.week));
+
+    // Graded picks including pushes — pushes stay in every denominator
+    return filteredPicks.flatMap(userPick =>
+      userPick.picks.filter(teamPick =>
+        teamPick.result === 'W' || teamPick.result === 'L' || teamPick.result === 'P' ||
+        teamPick.correct === true || teamPick.correct === false
+      )
     );
   };
 
-  // Get available weeks for the selector
+  // Get available weeks for the selector (regular season only)
   const getAvailableWeeks = () => {
-    const weeks = Array.from(new Set(picks.map(pick => pick.week))).sort((a, b) => a - b);
+    const weeks = Array.from(new Set(
+      picks.filter(pick => !isPlayoffWeek(pick.week)).map(pick => pick.week)
+    )).sort((a, b) => a - b);
     return weeks;
   };
 
@@ -4079,9 +4003,13 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
       for (let week = 1; week <= maxWeekToLoad; week++) {
         try {
           const weekResponse = await fetch(`${process.env.PUBLIC_URL}/results/nfl_results_week${week}.csv`);
+          if (!weekResponse.ok) {
+            console.log(`Week ${week} results not available (HTTP ${weekResponse.status})`);
+            continue;
+          }
           const weekText = await weekResponse.text();
-          
-          await new Promise<void>((resolve) => {
+
+          await new Promise<void>((resolve, reject) => {
             Papa.parse(weekText, {
               header: true,
               complete: (results) => {
@@ -4091,7 +4019,8 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
                 allResults.push(...weekData);
                 loadedWeeks++;
                 resolve();
-              }
+              },
+              error: (error: any) => reject(error) // never leave the promise hanging
             });
           });
         } catch (e) {
@@ -4147,7 +4076,7 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
     
     results.forEach(game => {
       // Handle both column formats
-      const homeWon = game.home_covered === 'TRUE' || game.home_ats_result === 'W';
+      const homeWon = game.home_ats_result === 'W';
       const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
       
       if (homeWon) homeWins++;
@@ -4176,19 +4105,19 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
     
     results.forEach(game => {
       // Handle both column formats for spreads
-      const homeSpread = parseFloat(game.spread_home || game.home_spread) || 0;
+      const homeSpread = parseFloat(game.home_spread) || 0;
       const awaySpread = parseFloat(game.spread_away || game.away_spread) || 0;
       
       // Determine which team was favored (negative spread = favorite)
       if (homeSpread < 0) {
         // Home team favored
-        const homeWon = game.home_covered === 'TRUE' || game.home_ats_result === 'W';
+        const homeWon = game.home_ats_result === 'W';
         const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
         if (homeWon) favoriteWins++;
         else if (awayWon) underdogWins++;
       } else if (awaySpread < 0) {
         // Away team favored
-        const homeWon = game.home_covered === 'TRUE' || game.home_ats_result === 'W';
+        const homeWon = game.home_ats_result === 'W';
         const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
         if (awayWon) favoriteWins++;
         else if (homeWon) underdogWins++;
@@ -4226,7 +4155,7 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
 
     results.forEach(game => {
       // Handle both column formats for spreads
-      const homeSpread = parseFloat(game.spread_home || game.home_spread) || 0;
+      const homeSpread = parseFloat(game.home_spread) || 0;
       const awaySpread = parseFloat(game.spread_away || game.away_spread) || 0;
       const spread = Math.abs(homeSpread); // Use absolute value for range categorization
       
@@ -4238,7 +4167,7 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
       
       if (spreadCategory) {
         // Handle both column formats for results
-        const homeWon = game.home_covered === 'TRUE' || game.home_ats_result === 'W';
+        const homeWon = game.home_ats_result === 'W';
         const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
         
         // Determine favorite (negative spread) vs underdog (positive spread)
@@ -4343,14 +4272,14 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
       
       weekData.forEach(game => {
         // Handle both column formats
-        const homeWon = game.home_covered === 'TRUE' || game.home_ats_result === 'W';
+        const homeWon = game.home_ats_result === 'W';
         const awayWon = game.away_covered === 'TRUE' || game.away_ats_result === 'W';
         
         if (homeWon) homeWins++;
         if (awayWon) awayWins++;
         
         // Handle both column formats for spreads
-        const homeSpread = parseFloat(game.spread_home || game.home_spread) || 0;
+        const homeSpread = parseFloat(game.home_spread) || 0;
         const awaySpread = parseFloat(game.spread_away || game.away_spread) || 0;
         
         if (homeSpread < 0) {
@@ -4525,273 +4454,5 @@ function NFLTrends({ games, teamAbbreviations, currentWeek }: NFLTrendsProps) {
   );
 }
 
-interface InsightsProps {
-  picks: Pick[];
-  users: User[];
-  games: Game[];
-}
-
-function Insights({ picks, users, games }: InsightsProps) {
-  // Helper function to get all graded team picks
-  const getAllGradedPicks = () => {
-    return picks.flatMap(userPick => 
-      userPick.picks.filter(teamPick => teamPick.correct !== null && teamPick.correct !== undefined)
-    );
-  };
-
-  // Helper function to find game data for a pick
-  const getGameForPick = (teamPick: TeamPick) => {
-    return games.find(game => 
-      game.id === teamPick.gameId || 
-      game.away === teamPick.team || 
-      game.home === teamPick.team
-    );
-  };
-
-  const gradedPicks = getAllGradedPicks();
-
-  // Team Performance Analytics
-  const getTeamAnalytics = () => {
-    const teamStats: { [key: string]: { picked: number; correct: number } } = {};
-    
-    gradedPicks.forEach(pick => {
-      if (!teamStats[pick.team]) {
-        teamStats[pick.team] = { picked: 0, correct: 0 };
-      }
-      teamStats[pick.team].picked++;
-      if (pick.correct) teamStats[pick.team].correct++;
-    });
-
-    return Object.entries(teamStats)
-      .map(([team, stats]) => ({
-        team,
-        picked: stats.picked,
-        correct: stats.correct,
-        percentage: Math.round((stats.correct / stats.picked) * 100)
-      }))
-      .sort((a, b) => b.picked - a.picked);
-  };
-
-  // Underdog vs Favorite Analytics
-  const getUnderdogFavoriteAnalytics = () => {
-    let favoriteStats = { picked: 0, correct: 0 };
-    let underdogStats = { picked: 0, correct: 0 };
-
-    gradedPicks.forEach(pick => {
-      const spread = pick.spread;
-      if (spread < 0) { // Negative spread = favorite
-        favoriteStats.picked++;
-        if (pick.correct) favoriteStats.correct++;
-      } else { // Positive spread = underdog
-        underdogStats.picked++;
-        if (pick.correct) underdogStats.correct++;
-      }
-    });
-
-    return {
-      favorites: {
-        ...favoriteStats,
-        percentage: favoriteStats.picked > 0 ? Math.round((favoriteStats.correct / favoriteStats.picked) * 100) : 0
-      },
-      underdogs: {
-        ...underdogStats,
-        percentage: underdogStats.picked > 0 ? Math.round((underdogStats.correct / underdogStats.picked) * 100) : 0
-      }
-    };
-  };
-
-  // Home vs Away Analytics
-  const getHomeAwayAnalytics = () => {
-    let homeStats = { picked: 0, correct: 0 };
-    let awayStats = { picked: 0, correct: 0 };
-
-    gradedPicks.forEach(pick => {
-      const game = getGameForPick(pick);
-      if (!game) return;
-
-      if (game.home === pick.team) {
-        homeStats.picked++;
-        if (pick.correct) homeStats.correct++;
-      } else {
-        awayStats.picked++;
-        if (pick.correct) awayStats.correct++;
-      }
-    });
-
-    return {
-      home: {
-        ...homeStats,
-        percentage: homeStats.picked > 0 ? Math.round((homeStats.correct / homeStats.picked) * 100) : 0
-      },
-      away: {
-        ...awayStats,
-        percentage: awayStats.picked > 0 ? Math.round((awayStats.correct / awayStats.picked) * 100) : 0
-      }
-    };
-  };
-
-  // Spread Range Analytics
-  const getSpreadAnalytics = () => {
-    const spreadRanges: { [key: string]: { picked: number; correct: number } } = {};
-    
-    gradedPicks.forEach(pick => {
-      const spread = Math.abs(pick.spread);
-      let range;
-      
-      if (spread <= 3) range = '1-3 points';
-      else if (spread <= 6) range = '3.5-6 points';
-      else if (spread <= 10) range = '6.5-10 points';
-      else range = '10+ points';
-
-      if (!spreadRanges[range]) {
-        spreadRanges[range] = { picked: 0, correct: 0 };
-      }
-      spreadRanges[range].picked++;
-      if (pick.correct) spreadRanges[range].correct++;
-    });
-
-    return Object.entries(spreadRanges)
-      .map(([range, stats]) => ({
-        range,
-        picked: stats.picked,
-        correct: stats.correct,
-        percentage: Math.round((stats.correct / stats.picked) * 100)
-      }))
-      .sort((a, b) => {
-        const order = ['1-3 points', '3.5-6 points', '6.5-10 points', '10+ points'];
-        return order.indexOf(a.range) - order.indexOf(b.range);
-      });
-  };
-
-  const teamAnalytics = getTeamAnalytics();
-  const underdogFavorite = getUnderdogFavoriteAnalytics();
-  const homeAway = getHomeAwayAnalytics();
-  const spreadAnalytics = getSpreadAnalytics();
-
-  const StatCard = ({ title, stats, subtitle }: { title: string; stats: any; subtitle?: string }) => (
-    <div className="bg-gray-50 p-4 rounded-lg">
-      <h4 className="font-semibold text-gray-900 mb-2">{title}</h4>
-      <div className="text-2xl font-bold text-blue-600">
-        {stats.correct}/{stats.picked} ({stats.percentage}%)
-      </div>
-      {subtitle && <div className="text-sm text-gray-600">{subtitle}</div>}
-    </div>
-  );
-
-  return (
-    <div className="space-y-8">
-      {/* Overview Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-blue-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-blue-600">{gradedPicks.length}</div>
-          <div className="text-sm text-blue-700">Total Picks Analyzed</div>
-        </div>
-        <div className="bg-green-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-green-600">{gradedPicks.filter(p => p.correct).length}</div>
-          <div className="text-sm text-green-700">Correct Picks</div>
-        </div>
-        <div className="bg-red-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-red-600">{gradedPicks.filter(p => !p.correct).length}</div>
-          <div className="text-sm text-red-700">Incorrect Picks</div>
-        </div>
-        <div className="bg-purple-50 p-4 rounded-lg text-center">
-          <div className="text-2xl font-bold text-purple-600">{teamAnalytics.length}</div>
-          <div className="text-sm text-purple-700">Teams Picked</div>
-        </div>
-      </div>
-
-      {/* Favorites vs Underdogs */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">🎯 Favorites vs Underdogs</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <StatCard 
-            title="Favorites (- spread)" 
-            stats={underdogFavorite.favorites}
-            subtitle="Teams favored to win"
-          />
-          <StatCard 
-            title="Underdogs (+ spread)" 
-            stats={underdogFavorite.underdogs}
-            subtitle="Teams getting points"
-          />
-        </div>
-      </div>
-
-      {/* Home vs Away */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">🏠 Home vs Away Teams</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <StatCard 
-            title="Home Teams" 
-            stats={homeAway.home}
-            subtitle="Playing at home"
-          />
-          <StatCard 
-            title="Away Teams" 
-            stats={homeAway.away}
-            subtitle="Playing on the road"
-          />
-        </div>
-      </div>
-
-      {/* Spread Ranges */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Performance by Spread Size</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {spreadAnalytics.map(range => (
-            <StatCard 
-              key={range.range}
-              title={range.range} 
-              stats={range}
-              subtitle="Spread range"
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Most Picked Teams */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">⭐ Most Popular Teams</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Times Picked</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Correct</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Success Rate</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {teamAnalytics.slice(0, 10).map(team => (
-                <tr key={team.team}>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {team.team}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {team.picked}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {team.correct}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                      team.percentage >= 60 ? 'bg-green-100 text-green-800' :
-                      team.percentage >= 50 ? 'bg-yellow-100 text-yellow-800' :
-                      team.percentage > 0 ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-500'
-                    }`}>
-                      {team.percentage}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default App;

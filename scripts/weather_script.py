@@ -15,6 +15,8 @@ import os
 from dateutil import parser as date_parser
 import pytz
 
+from season import load_season_config, current_week, read_api_key, lines_csv_paths, WEATHER_DIR, PUBLIC_DIR
+
 class WeatherAPI:
     def __init__(self, api_key):
         self.api_key = api_key
@@ -106,8 +108,12 @@ def generate_weather_summary(forecast_data, target_date=None):
     if target_date:
         # Find forecast closest to target date
         target_timestamp = int(target_date.timestamp())
-        closest_forecast = min(forecast_data['list'], 
+        closest_forecast = min(forecast_data['list'],
                              key=lambda x: abs(x['dt'] - target_timestamp))
+        # The free API only forecasts ~5 days out; don't pass off a distant
+        # forecast slot as game-time weather
+        if abs(closest_forecast['dt'] - target_timestamp) > 6 * 3600:
+            return "Forecast not yet available for game time"
         forecast = closest_forecast
     
     # Extract weather data
@@ -164,18 +170,25 @@ def generate_weather_summary(forecast_data, target_date=None):
 
 def main():
     parser = argparse.ArgumentParser(description='Fetch NFL weather forecasts')
-    parser.add_argument('--api-key', required=True, help='OpenWeatherMap API key')
-    parser.add_argument('--output', default='data/weather/weather_forecast.csv', 
+    parser.add_argument('--api-key', default=None,
+                       help='OpenWeatherMap API key (default: WEATHER_API_KEY env or .keys/weather_api_key)')
+    parser.add_argument('--output', default=str(WEATHER_DIR / 'weather_forecast.csv'),
                        help='Output CSV file path')
-    parser.add_argument('--games-csv', 
-                       help='Path to games CSV file with kickoff times')
-    parser.add_argument('--test', action='store_true', 
+    parser.add_argument('--games-csv', default=None,
+                       help='Games CSV with kickoff times (default: current week lines file)')
+    parser.add_argument('--test', action='store_true',
                        help='Test with a few stadiums only')
-    
+
     args = parser.parse_args()
-    
+
+    if not args.games_csv:
+        # Default to the deployed lines file for the current week
+        _, public_lines = lines_csv_paths(current_week(load_season_config()))
+        if public_lines.exists():
+            args.games_csv = str(public_lines)
+
     # Initialize weather API
-    weather_api = WeatherAPI(args.api_key)
+    weather_api = WeatherAPI(args.api_key or read_api_key('WEATHER_API_KEY', 'weather_api_key'))
     
     # Load game data with kickoff times
     games_data = {}
@@ -216,8 +229,7 @@ def main():
                 'state': stadium_info['state'],
                 'weather_summary': summary,
                 'forecast_time': datetime.now().isoformat(),
-                'game_time': game_time.isoformat() if game_time else '',
-                'raw_data': json.dumps(forecast_data)  # Store raw data for detailed analysis
+                'game_time': game_time.isoformat() if game_time else ''
             })
             
             print(f"  {summary}{time_info}")
@@ -227,11 +239,13 @@ def main():
     # Create output directory if it doesn't exist
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     
-    # Save to CSV
+    # Save to CSV — archive copy plus the deployed copy the app fetches
     df = pd.DataFrame(weather_data)
     df.to_csv(args.output, index=False)
-    
-    print(f"\nWeather data saved to {args.output}")
+    public_copy = PUBLIC_DIR / 'weather_forecast.csv'
+    df.to_csv(public_copy, index=False)
+
+    print(f"\nWeather data saved to {args.output} and {public_copy}")
     print(f"Retrieved weather for {len(weather_data)} stadiums")
 
 if __name__ == "__main__":

@@ -4,241 +4,133 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Structure
 
-This is an NFL spread league pick-em application with a React frontend deployed to GitHub Pages and multiple Python scripts for data management:
+NFL spread league pick-em: React frontend on GitHub Pages, Python data pipeline, Supabase storage. **The weekly workflow is automated via GitHub Actions** — manual script runs are for overrides and debugging.
 
 ```
 nfl_spread_league/
-├── nfl-pickem/                 # React frontend application
+├── nfl-pickem/                 # React frontend
 │   ├── src/App.tsx            # Main application component
-│   ├── public/                # Static assets and current week data files
-│   └── package.json
-├── scripts/                   # Python data management scripts
-│   ├── script.py             # Fetches NFL odds data from The Odds API
-│   ├── results_script.py     # Processes game results and updates pick accuracy
-│   ├── supabase_integration.py # Handles Supabase database operations
-│   └── weather_script.py     # Fetches weather forecasts for outdoor NFL stadiums
-├── data/                     # Organized data storage
-│   ├── lines/               # NFL odds/lines data (nfl_lines_week*.csv)
-│   ├── results/             # Game results data (nfl_results_week*.csv)
-│   ├── picks/               # User picks data (picks_week*.csv)
-│   ├── pick_results/        # Pick accuracy results (pick_results_week*.csv)
-│   └── weather/             # Weather forecast data for outdoor stadiums
-├── .keys/                   # API keys storage (secure folder)
-│   ├── odds_api_key        # The Odds API key
-│   └── weather_api_key     # OpenWeatherMap API key
-├── manual_fixes/            # Manual correction scripts and data
-├── docs/                    # Documentation files
-├── workspaces/             # VS Code workspace files
-└── CLAUDE.md              # This file
+│   ├── src/seasonConfig.ts    # Season config loader + week computation + calcRecord()
+│   ├── public/season.json     # ★ SINGLE SOURCE OF TRUTH: season year, week-1 date, mode
+│   ├── public/lines/          # Current season lines CSVs (served to app)
+│   └── public/results/        # Current season results CSVs (served to app)
+├── scripts/
+│   ├── season.py             # Shared config/path/week helpers (reads season.json)
+│   ├── script.py             # Fetch lines from The Odds API
+│   ├── results_script.py     # Grade a week from ESPN scores (validation gates)
+│   ├── supabase_integration.py # DB operations (service key for writes)
+│   └── weather_script.py     # Weather forecasts for outdoor stadiums
+├── .github/workflows/
+│   ├── weekly-update.yml     # Tue 10am ET: grade last week, fetch lines, deploy
+│   └── weather-refresh.yml   # Thu/Sat/Sun: weather refresh + deploy
+├── supabase/migrations/       # SQL migrations (run in dashboard SQL editor)
+├── data/                      # Current season pipeline outputs
+│   ├── lines/ results/ picks/ pick_results/ weather/
+│   └── archive/2025/          # Complete 2025 season (incl. full Supabase backup)
+├── .keys/                     # Local API keys (gitignored; CI uses secrets)
+└── requirements.txt
 ```
+
+## Season Configuration (start here)
+
+`nfl-pickem/public/season.json` drives everything: the app computes the current
+week from `week1TuesdayEt` (no hand-edited `currentWeek`!), scripts derive their
+week windows from it, and playoff rounds/files are defined in it. To advance to
+playoffs: set `mode: "playoffs"` and `playoffRound: 100` (Wild Card) and deploy.
+
+**Season rollover checklist** (each September):
+1. Archive prior season: `git mv` the `data/{lines,results,picks,pick_results}` CSVs to `data/archive/<year>/`, purge `nfl-pickem/public/{lines,results}` of old-season files
+2. Update `season.json`: season year, `week1TuesdayEt` (Tuesday before opener), `mode: "regular"`, `playoffRound: null`, title
+3. Export prior season picks from Supabase to the archive (full-table backup)
+4. First lines fetch: `python3 scripts/script.py`
 
 ## Common Commands
 
-### React Frontend (nfl-pickem/)
+All scripts figure out the week/season from season.json — no arguments needed
+for the normal flow. Run from anywhere (paths resolve from the repo root).
+
 ```bash
+# Fetch current week's lines (writes data/lines/ AND nfl-pickem/public/lines/)
+python3 scripts/script.py
+#   --week N to override, --force to refetch existing lines (careful: users picked against them)
+
+# Grade the week that just ended from ESPN scores (needs SUPABASE_SERVICE_KEY)
+SUPABASE_SERVICE_KEY=... python3 scripts/results_script.py
+#   --week N to override, --skip-supabase for CSV-only, --allow-partial mid-week
+
+# Refresh weather for the current week's outdoor games
+python3 scripts/weather_script.py
+
+# React app
 cd nfl-pickem
-npm start      # Development server on localhost:3000
-npm test       # Run tests in watch mode
-npm run build  # Production build
-npm run deploy # Deploy to GitHub Pages
+npm start           # Dev server on localhost:3000
+npx tsc --noEmit    # Type check (there is no npm run lint/typecheck)
+npm run build       # Production build
+npm run deploy      # Manual deploy to GitHub Pages (Actions normally does this)
 ```
 
-### Python Scripts (scripts/)
-```bash
-# Fetch odds for a specific week (ALWAYS use 2025 dates!)
-python3 scripts/script.py --api-key $(cat .keys/odds_api_key) --week1-start-et "2025-09-02 08:00" --week 9 --csv data/lines/nfl_lines_week9.csv
+API keys: `ODDS_API_KEY` / `WEATHER_API_KEY` env vars, falling back to
+`.keys/odds_api_key` / `.keys/weather_api_key` files. In GitHub Actions they are
+repo secrets, along with `SUPABASE_SERVICE_KEY`.
 
-# Process results and update pick accuracy (ALWAYS use 2025 dates!)
-python3 scripts/results_script.py --api-key $(cat .keys/odds_api_key) --week 8 --week1-start-et "2025-09-02 08:00"
+## Automation (GitHub Actions)
 
-# Fetch weather forecasts for outdoor stadiums
-python3 scripts/weather_script.py --api-key $(cat .keys/weather_api_key) --output data/weather/weather_forecast.csv --games-csv nfl-pickem/public/lines/nfl_lines_week16.csv
+- **weekly-update.yml** — Tuesdays 14:00 UTC: grades the completed week
+  (ESPN scoreboard, week-addressable — no 3-day window), fetches the new week's
+  lines, commits data, builds, deploys. Manual run: Actions tab → Run workflow
+  (optional week input).
+- **weather-refresh.yml** — Thu/Sat/Sun 14:00 UTC: weather + deploy if changed.
+- Grading has **validation gates** that fail the job loudly (nonzero exit)
+  instead of publishing bad data: unmatched games (exit 2), games not final
+  (exit 3), ungraded picks (exit 4), Supabase update failure (exit 5).
+  A red X on the Actions tab means DO NOT trust that run's outputs.
 
-# Manual Supabase operations (if needed)
-python3 scripts/supabase_integration.py
+## Database (Supabase)
 
-# IMPORTANT: Always use 2025 dates, not 2024! NFL season is 2025.
-# Week 1 started: 2025-09-02 08:00
-# Current season: 2025 NFL season
-```
+- **picks table**: `user_id, season, week, game_id, team, spread, correct, result, created_at`
+  - `season` (int): all queries are season-scoped; 2025 history is preserved alongside 2026
+  - `result` (text): `'W'`/`'L'`/`'P'` — `'P'` is a push; `NULL` means not graded yet.
+    This replaces the old ambiguity where NULL meant push-or-pending.
+  - `correct` (bool) kept in sync for compatibility (`NULL` for pushes)
+- **RLS** (see `supabase/migrations/20260905_season_2026_foundation.sql`):
+  the anon key (shipped in the browser bundle) can read everything but only
+  insert/update/delete UNGRADED picks of the current era. Graded history is
+  immutable to the public. **Grading writes require the service_role key**
+  (env `SUPABASE_SERVICE_KEY`; never commit it, never ship it to the browser).
+- Playoff pick encoding: `game_id` suffixes `-ou`, `-h1`, `-h1-ou`; props store
+  `PROP:<selection>:<display>` in team. Decoded in `loadPicks` (App.tsx).
 
-## Architecture
+## CRITICAL: Push Handling Rule
 
-### React App Architecture
-- **Components**: Comprehensive single-file architecture in `App.tsx` with:
-  - `PickInterface`: Game selection interface with team logos, spread visualization, weather integration, and user validation
-  - `Leaderboard`: Real-time standings with percentage calculations, group performance metrics, weekly heatmap, and cumulative trend charts
-  - `PickChart`: Matrix view of all users' picks across weeks with totals and percentages
-  - `PickHistory`: Individual user pick history with result tracking
-  - `InsightsBeta`: Advanced analytics (favorites vs underdogs, home/away, spread ranges, all popular teams)
-- **State Management**: React hooks (useState, useEffect) with Supabase integration and localStorage persistence
-- **User Persistence**: Selected user saved to localStorage (`nfl-pickem-user` key) and restored on app load
-- **Styling**: Tailwind CSS with responsive design, hover states, and conditional styling for game states
-- **Data Sources**: 
-  - Supabase database for picks storage and retrieval
-  - CSV files in `public/` directory for games data (nfl_lines_week*.csv)
-  - YAML files for team data (teamAbbreviations.yaml, nflStadiums.yaml)
-  - Weather forecast CSV for outdoor stadium conditions
-  - ESPN team logos via CDN links
+- **Pushes (`result = 'P'`) count as picks made (denominator) but NOT as correct picks (numerator)**
+- **2-0 with 1 push = 2/3 = 66.7%, not 100%**
+- All percentages in the app go through `calcRecord()` in `src/seasonConfig.ts` — use it, never hand-roll
+- Use the `spread-analysis` skill (`.claude/skills/spread-analysis/SKILL.md`) for ATS math
 
-### Database Architecture (Supabase)
-- **picks table**: Stores user selections with fields:
-  - `user_id`, `week`, `game_id`, `team`, `spread`, `correct` (nullable for grading)
-- **Real-time updates**: App loads picks from Supabase on component mount and after saves
-- **Data persistence**: All user picks saved to database immediately, with CSV exports for backup
-- **User management**: Hardcoded user list in React app (Jacob, Cam, Connor, Nathan, Shane, Max, John)
+## Architecture Notes
 
-### Python Scripts Architecture
-- **scripts/script.py**: 
-  - Fetches from The Odds API for NFL spreads, totals, and moneyline markets
-  - Supports preferred sportsbooks: DraftKings, FanDuel, BetMGM, Caesars
-  - Outputs structured CSV to `data/lines/` with timezone-aware ET timestamps
-- **scripts/results_script.py**:
-  - Processes completed games and determines pick accuracy
-  - Updates Supabase `picks.correct` field based on actual outcomes
-  - Exports results to `data/results/` and `data/pick_results/` for analysis
-  - **IMPORTANT**: The Odds API only returns completed games from the past 3 days. If running results for older games, you must manually add game results or ask the user for specific game outcomes.
-- **scripts/supabase_integration.py**:
-  - Centralized database operations module
-  - Functions for extracting picks, updating results, generating leaderboards
-  - Exports picks to `data/picks/` directory
-- **scripts/weather_script.py**:
-  - Fetches weather forecasts from OpenWeatherMap API for outdoor NFL stadiums
-  - Uses game kickoff times for accurate game-time weather predictions
-  - Generates concise weather summaries with temperature, precipitation, wind conditions
-  - Supports extreme weather icons and filtering for notable conditions only
-
-### Data Flow
-1. **Weekly Setup**: Use `scripts/script.py` to fetch odds → CSV in `data/lines/` → copy to `nfl-pickem/public/`
-2. **User Session**: User selection persisted to localStorage, restored on page load
-3. **Pick Submission**: React app loads games from CSV, validates user selection, saves picks to Supabase
-4. **Results Processing**: Use `scripts/results_script.py` to grade picks after games complete
-   - **IMPORTANT**: Use the `spread-analysis` skill in `.claude/skills/spread-analysis.md` for accurate spread calculations
-   - **CRITICAL PUSH HANDLING RULE**: 
-  - **Pushes (`correct === null`) count as picks made (denominator) but NOT as correct picks (numerator)**
-  - **This means they DECREASE win percentage: if you go 2-0 with 1 push, you're 2/3 = 66.7%, not 2/2 = 100%**
-  - **Pushes are stored as `NULL` in database and must be counted in totals for percentage calculations**
-  - **This rule applies to ALL percentage calculations: Leaderboard, PickChart totals, analytics, etc.**
-5. **Analytics**: React app displays real-time analytics from graded picks with advanced insights
-
-### Key Data Types
-- **Game**: NFL game with odds data (spreads, totals, kickoff time, team logos, game locking)
-- **Pick**: User's 3 game selections for a week with spread values and accuracy tracking
-- **User**: League participant with calculated totals, percentages, and localStorage persistence
-- **TeamPick**: Individual team selection with `correct` field for grading (null until game completes)
-
-## File Organization
-
-### Data Files
-- **`data/lines/`**: Original odds data from The Odds API (nfl_lines_week*.csv)
-- **`data/results/`**: Game results with ATS outcomes (nfl_results_week*.csv)
-- **`data/picks/`**: User selections exported from Supabase (picks_week*.csv)
-- **`data/pick_results/`**: Pick accuracy results (pick_results_week*.csv)
-- **`data/weather/`**: Weather forecast data for outdoor stadiums (weather_forecast.csv)
-
-### Script Files
-- **`scripts/`**: All Python data management scripts
-- **`manual_fixes/`**: One-off correction scripts and manual data files
-- **`docs/`**: Documentation files (*.md)
-- **`workspaces/`**: VS Code workspace configurations
-
-## Environment Setup
-
-### React App Requirements
-- Node.js and npm
-- Dependencies: React 19, TypeScript, Tailwind CSS, PapaParse, Supabase client, js-yaml
-- GitHub Pages deployment via gh-pages package
-
-### Python Requirements
-- Python with pandas, requests, pytz, supabase-py, yaml, dateutil
-- The Odds API key (stored in .keys/odds_api_key file)
-- OpenWeatherMap API key (stored in .keys/weather_api_key file)
-- Supabase project with `picks` table configured
-
-### Deployment
-- **Frontend**: Auto-deployed to GitHub Pages via `npm run deploy` at https://jolsufka.github.io/nfl_spread_league
-- **Database**: Hosted on Supabase with public read access for picks table
-- **Static Assets**: CSV files in organized folders and team data in `nfl-pickem/public/`
-  - `nfl-pickem/public/lines/`: NFL odds/lines CSV files
-  - `nfl-pickem/public/results/`: NFL game results CSV files
-  - `nfl-pickem/public/weather_forecast.csv`: Weather forecasts for outdoor stadiums
-- **User State**: Persisted locally via browser localStorage for seamless user experience
-
-## Weekly Workflow
-
-1. **Fetch Odds**: `python3 scripts/script.py --api-key $(cat .keys/odds_api_key) --week1-start-et "2025-09-02 08:00" --week N`
-2. **Copy to App**: `cp data/lines/nfl_lines_weekN.csv nfl-pickem/public/lines/`
-3. **Update App**: Change `currentWeek` and CSV filename in `App.tsx`
-4. **Deploy**: `cd nfl-pickem && npm run deploy`
-5. **Process Results**: `python3 scripts/results_script.py --api-key $(cat .keys/odds_api_key) --week N --week1-start-et "2025-09-02 08:00"`
-6. **Copy Results**: `cp data/results/nfl_results_weekN.csv nfl-pickem/public/results/`
-
-**IMPORTANT**: When processing results for week N, you must also advance the app to week N+1:
-- The Weekly Performance Heatmap shows weeks 1 through `currentWeek - 1`
-- The Cumulative Success Percentage Trends chart also uses `currentWeek - 1`
-- So after grading week N results, update `currentWeek` to N+1 and deploy to show week N in charts
-
-## Key Features
-- **Local User Persistence**: Selected user automatically saved and restored across sessions
-- **Real-time Pick Validation**: Prevents submissions without user selection or incomplete picks
-- **Game State Management**: Games lock automatically at kickoff time to prevent late picks
-- **Weather Integration**: Game-time weather forecasts for outdoor stadiums with condition icons
-- **Interactive Analytics**: Cumulative trend charts with tooltips, weekly performance heatmaps
-- **Comprehensive Insights**: All team statistics, favorites vs underdogs, home/away performance, spread analysis
-- **Responsive Design**: Mobile-friendly interface with touch-optimized interactions
-- **Live Updates**: Real-time leaderboard and pick tracking with Supabase integration
-- **Organized Data Structure**: Clean separation of data types in organized folders
+- **App.tsx** (single file): `PickInterface`, playoff interfaces (incl. Super Bowl
+  props/half-lines), `Leaderboard`, `PickChart`, `PickHistory`, `InsightsBeta`,
+  `NFLTrends`, `CumulativeTrendChart`. Shared helpers (`getTeamLogo`,
+  `getMascotName`) live at module scope; season helpers in `seasonConfig.ts`.
+- Lines CSVs carry `id` (row order, matches app game ids) and `event_id`
+  (The Odds API id). Results CSVs carry `game_id` matching lines `id`.
+- User list is hardcoded in App.tsx (`users` state) AND CumulativeTrendChart's
+  `userColors` — adding a league member means touching both.
+- localStorage key `nfl-pickem-user` persists the selected user.
+- Old one-off fix scripts live in `data/archive/2025/manual_fixes/` — they are
+  historical, point at dead paths/projects, and must not be run.
 
 ## Claude Code Skills
 
-This project uses Claude Code Skills to provide specialized capabilities. Skills are stored in `.claude/skills/` with proper directory structure.
+- **spread-analysis**: ATS math and push rules — use for any grading questions
+- **nfl-week-setup**: manual/override weekly setup flow
+- **nfl-results-processor**: manual/override grading flow
+- **nfl-deploy**: build + deploy with validation
 
-### Current Skills
-- **spread-analysis**: NFL point spread analysis and calculation. Essential for accurate ATS (Against The Spread) results and avoiding common spread calculation mistakes.
-- **nfl-deploy**: Complete deployment workflow with testing, building, and validation for the React app.
-- **nfl-results-processor**: Processes completed NFL games, updates pick accuracy in Supabase, and generates results files.
-- **nfl-week-setup**: Automates the complete weekly setup process including fetching odds, organizing files, and deploying the app.
+## Important Instructions
 
-### Skill Directory Structure
-```
-.claude/skills/
-├── spread-analysis/
-│   └── SKILL.md           # NFL spread calculation guidance
-├── nfl-deploy/
-│   ├── SKILL.md           # Deployment workflow
-│   └── deploy-validator.sh # Deployment validation script
-├── nfl-results-processor/
-│   └── SKILL.md           # Results processing automation
-└── nfl-week-setup/
-    └── SKILL.md           # Weekly setup automation
-```
-
-### Creating New Skills
-
-When adding new skills, follow the proper Claude Code structure:
-
-1. **Create skill directory**: `.claude/skills/[skill-name]/`
-2. **Create SKILL.md file** with proper YAML frontmatter:
-```yaml
----
-name: skill-name  # Lowercase, hyphens only, max 64 chars
-description: Brief description including trigger words and use cases  # Max 1024 chars
-allowed-tools: ["Bash", "Read", "Write"]  # Optional tool restrictions
----
-```
-3. **Include trigger words** in description for discoverability
-4. **Add supporting files** as needed (scripts, templates, examples)
-
-### Skill Usage Guidelines
-- **spread-analysis**: Use when evaluating NFL game results, calculating ATS outcomes, or processing betting data
-- **nfl-deploy**: Use for complete app deployment with testing and validation
-- **nfl-results-processor**: Use when processing completed games, updating pick accuracy, or generating results reports
-- **nfl-week-setup**: Use when setting up new week odds, updating app configuration, or automating weekly workflows
-- Skills automatically activate based on context and description keywords
-
-# Important Instructions
-- ALWAYS use 2025 dates when running scripts (not 2024!)
-- NEVER create files unless absolutely necessary for achieving goals
-- ALWAYS prefer editing existing files to creating new ones
+- season.json is the only place the season/week calendar lives — never hardcode dates or week numbers in code or docs
+- Scripts write to BOTH `data/` and `nfl-pickem/public/` — never hand-copy CSVs between them
+- NEVER create files unless necessary; prefer editing existing files
 - NEVER proactively create documentation files unless explicitly requested
-- Scripts now output to organized `data/` folders - update any hardcoded paths accordingly

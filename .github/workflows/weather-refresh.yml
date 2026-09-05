@@ -1,0 +1,68 @@
+name: Weather refresh
+
+# Game-day mornings: refresh forecasts for outdoor stadiums and redeploy.
+on:
+  schedule:
+    - cron: '0 14 * * 4,6,0'   # Thu, Sat, Sun 14:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: weather-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-weather:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch weather forecasts
+        env:
+          WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
+        run: python3 scripts/weather_script.py
+
+      - name: Commit weather updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/weather nfl-pickem/public/weather_forecast.csv
+          if git diff --cached --quiet; then
+            echo "No weather changes"
+            echo "changed=false" >> "$GITHUB_ENV"
+          else
+            git commit -m "Weather refresh ($(date -u +%Y-%m-%d))"
+            git push
+            echo "changed=true" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: env.changed == 'true'
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: nfl-pickem/package-lock.json
+
+      - name: Build app
+        if: env.changed == 'true'
+        working-directory: nfl-pickem
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to GitHub Pages
+        if: env.changed == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: nfl-pickem/build

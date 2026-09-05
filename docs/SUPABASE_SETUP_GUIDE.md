@@ -32,11 +32,13 @@ INSERT INTO users (id, name) VALUES
 CREATE TABLE picks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT REFERENCES users(id),
+  season INTEGER NOT NULL DEFAULT 2026,
   week INTEGER NOT NULL,
   game_id TEXT NOT NULL,
   team TEXT NOT NULL,
   spread DECIMAL NOT NULL,
-  correct BOOLEAN DEFAULT NULL,
+  correct BOOLEAN DEFAULT NULL, -- legacy compat; result is authoritative
+  result TEXT CHECK (result IN ('W','L','P') OR result IS NULL), -- NULL = not graded yet, 'P' = push
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(user_id, week, game_id) -- Prevent duplicate picks
 );
@@ -44,19 +46,42 @@ CREATE TABLE picks (
 -- Create indexes for better performance
 CREATE INDEX idx_picks_user_week ON picks(user_id, week);
 CREATE INDEX idx_picks_week ON picks(week);
+CREATE INDEX picks_season_week_idx ON picks(season, week);
 ```
 
+The `season` and `result` columns were added to the original schema by `supabase/migrations/20260905_season_2026_foundation.sql` (idempotent; run it in the SQL Editor on an existing database).
+
 ### 2. Enable Row Level Security (RLS)
+
+The anon key (shipped in the browser bundle) may read everything, and may only create/modify/remove UNGRADED picks in the current era. Graded history is immutable to the public key. Grading happens with the service-role key (bypasses RLS), never shipped to browsers — the Python grading script requires it as the `SUPABASE_SERVICE_KEY` env var.
 
 ```sql
 -- Enable RLS on both tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE picks ENABLE ROW LEVEL SECURITY;
 
--- Allow all operations for now (you can restrict later)
-CREATE POLICY "Allow all operations on users" ON users FOR ALL TO anon USING (true);
-CREATE POLICY "Allow all operations on picks" ON picks FOR ALL TO anon USING (true);
+CREATE POLICY "picks_public_read" ON picks
+  FOR SELECT TO anon USING (true);
+
+CREATE POLICY "picks_anon_insert_ungraded" ON picks
+  FOR INSERT TO anon
+  WITH CHECK (correct IS NULL AND result IS NULL AND season >= 2026);
+
+CREATE POLICY "picks_anon_update_ungraded" ON picks
+  FOR UPDATE TO anon
+  USING (correct IS NULL AND result IS NULL AND season >= 2026)
+  WITH CHECK (correct IS NULL AND result IS NULL AND season >= 2026);
+
+CREATE POLICY "picks_anon_delete_ungraded" ON picks
+  FOR DELETE TO anon
+  USING (correct IS NULL AND result IS NULL AND season >= 2026);
+
+-- users table: public read only; changes require service role
+CREATE POLICY "users_public_read" ON users
+  FOR SELECT TO anon USING (true);
 ```
+
+These are the same policies applied by `supabase/migrations/20260905_season_2026_foundation.sql`, which also drops the old wide-open "Allow all operations" policies.
 
 ### 3. Get Your API Credentials
 
@@ -232,6 +257,8 @@ const testConnection = async () => {
 
 ## Phase 4: Mark Results (After Games)
 
+Grading is normally automated: `scripts/results_script.py` writes `result` = W/L/P for every pick (it needs the `SUPABASE_SERVICE_KEY` env var, since RLS blocks the anon key from writing grades). Manual dashboard edits are only a fallback.
+
 ### How to Update Pick Results
 
 1. Go to Supabase dashboard → **Table Editor** → **picks**
@@ -288,10 +315,10 @@ Your app will be live at: `https://jolsufka.github.io/nfl_spread_league`
 ## Phase 6: Weekly Workflow
 
 ### Monday: New Week Setup
-1. Run your Python script:
+1. Run your Python script (or let the `weekly-update.yml` GitHub Action do it Tuesday morning):
    ```bash
-   python script.py --api-key YOUR_KEY --week 3 --csv nfl_lines_week.csv
-   git add nfl_lines_week.csv
+   python3 scripts/script.py
+   git add data/lines nfl-pickem/public/lines
    git commit -m "Week 3 games"
    git push
    ```

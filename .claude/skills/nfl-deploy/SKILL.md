@@ -8,6 +8,8 @@ allowed-tools: ["Bash", "Read", "Write", "Edit", "LS", "WebFetch"]
 
 This skill automates the complete deployment process for the NFL spread league React application with comprehensive testing and validation.
 
+Note: scheduled deploys are automatic — GitHub Actions (`weekly-update.yml` Tuesdays 10am ET, `weather-refresh.yml` Thu/Sat/Sun mornings) build and publish to GitHub Pages after data updates. Use this skill for manual deploys after code changes.
+
 ## What This Skill Does
 
 1. **Pre-deployment Validation**: Checks data files, dependencies, and app configuration
@@ -21,7 +23,7 @@ This skill automates the complete deployment process for the NFL spread league R
 
 - React app in `nfl-pickem/` directory
 - npm dependencies installed
-- Current week's CSV data files in `public/` directory
+- Current week's CSV data files in `public/lines/` (and `public/results/` for graded weeks)
 - Git repository with GitHub Pages configured
 
 ## Usage Examples
@@ -38,13 +40,11 @@ User says any of:
 ### 1. Pre-deployment Checks
 - Verify React app directory exists
 - Check that npm dependencies are installed
-- Validate current week's CSV files are present
-- Confirm App.tsx has correct week configuration
+- Validate current week's CSV files are present in `public/lines/` and `public/results/`
 - Check git status for uncommitted changes
 
 ### 2. Code Quality Checks
-- Run linting if available (`npm run lint`)
-- Run type checking if available (`npm run typecheck`)
+- Run type checking: `npx tsc --noEmit` (there are no `lint`/`typecheck` npm scripts)
 - Run tests if available (`npm test` in CI mode)
 - Check for build warnings or errors
 
@@ -85,8 +85,7 @@ npm run deploy
 
 ### Build Failures
 - **Dependencies missing**: Run `npm install` and retry
-- **TypeScript errors**: Report specific errors for fixing
-- **Linting failures**: Show linting issues to resolve
+- **TypeScript errors**: Report specific errors from `npx tsc --noEmit` for fixing
 - **Build warnings**: Report but continue unless critical
 
 ### Deployment Failures
@@ -152,8 +151,8 @@ The skill provides:
 - Validate branch permissions
 
 ### Weekly Updates
-- Ensure new CSV data is included
-- Verify week number updates
+- Normally handled end-to-end by GitHub Actions — no manual deploy needed
+- Ensure new CSV data is included (`public/lines/`, `public/results/`)
 - Check that old data is preserved
 
 ### Emergency Fixes
