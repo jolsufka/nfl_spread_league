@@ -101,6 +101,20 @@ export function computeStandings(picks: Pick[], users: User[]): StandingRow[] {
   });
 }
 
+// Stable per-player colors (Paul Tol "bright" — 7 distinct, CVD-safe).
+// Index-aligned with the users array so every chart agrees.
+export const PLAYER_COLORS = [
+  '#4477AA', // blue
+  '#EE6677', // rose
+  '#228833', // green
+  '#CCBB44', // gold
+  '#66CCEE', // sky
+  '#AA3377', // plum
+  '#EE7733', // orange
+];
+
+export const playerColor = (index: number) => PLAYER_COLORS[index % PLAYER_COLORS.length];
+
 // Cumulative win% by week per user, for the trend chart.
 export function cumulativeTrend(picks: Pick[], users: User[]) {
   const weeks = Array.from(
@@ -111,8 +125,9 @@ export function cumulativeTrend(picks: Pick[], users: User[]) {
     )
   ).sort((a, b) => a - b);
 
-  return users.map((user) => ({
+  return users.map((user, index) => ({
     name: user.name,
+    color: playerColor(index),
     data: weeks
       .map((week) => {
         const record = calcRecord(userTeamPicks(picks, user.id, week));

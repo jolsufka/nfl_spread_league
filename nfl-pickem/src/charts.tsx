@@ -12,13 +12,30 @@ import 'chart-factory/table/table.css';
 
 ChartFactory.Table.register(D3Table);
 
+// chart-factory gap: series end labels (text.series-label) are drawn without
+// the data-series marker, so the interactive legend dims lines/dots but not
+// labels. Stamp the markers ourselves — labels are appended in series order.
+export function stampSeriesLabelMarkers(root: ParentNode = document) {
+  root.querySelectorAll('svg').forEach((svg) => {
+    svg
+      .querySelectorAll('text.series-label')
+      .forEach((node, index) => node.setAttribute('data-series', String(index)));
+    svg
+      .querySelectorAll('.series-label-leader')
+      .forEach((node, index) => node.setAttribute('data-series', String(index)));
+  });
+}
+
 // Keep chart colors in sync with the app's data-theme attribute.
 // (SVG colors are baked at render time, so a flip needs rerenderAll.)
 let themeObserverStarted = false;
 export function startChartThemeSync() {
   if (themeObserverStarted) return;
   themeObserverStarted = true;
-  const observer = new MutationObserver(() => ChartFactory.rerenderAll());
+  const observer = new MutationObserver(() => {
+    ChartFactory.rerenderAll();
+    stampSeriesLabelMarkers(); // rerender redraws labels without markers
+  });
   observer.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['data-theme'],
@@ -85,6 +102,7 @@ export function CfChart({ create, config, data, className }: CfChartProps) {
     if (!elRef.current) return;
     const chart = create(elRef.current, { ...config, ...(data ? { data } : {}) });
     chartRef.current = chart;
+    stampSeriesLabelMarkers(elRef.current);
     return () => {
       chart.destroy?.();
       chartRef.current = null;
