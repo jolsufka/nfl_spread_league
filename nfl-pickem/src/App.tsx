@@ -519,6 +519,7 @@ function App() {
         <div className="mb-8">
           <nav className="flex space-x-4 md:space-x-8 overflow-x-auto pb-2">
             {[
+              { key: 'picks', label: 'Make Picks' },
               { key: 'leaderboard', label: 'Leaderboard' },
               { key: 'chart', label: 'Pick Chart' },
               { key: 'history', label: 'Pick History' },
