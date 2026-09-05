@@ -10,6 +10,7 @@ interface StandingsScreenProps {
   teamAbbreviations: { [key: string]: string };
   selectedUser: string;
   season: number;
+  archive?: boolean; // final-season recap: no movement arrows or recent form
 }
 
 const formCells = (last5: Array<'W' | 'L' | 'P'>) =>
@@ -25,6 +26,7 @@ export default function StandingsScreen({
   teamAbbreviations,
   selectedUser,
   season,
+  archive = false,
 }: StandingsScreenProps) {
   const standings = useMemo(() => computeStandings(picks, users), [picks, users]);
   const trendSeries = useMemo(() => cumulativeTrend(picks, users), [picks, users]);
@@ -37,7 +39,7 @@ export default function StandingsScreen({
         player:
           `${row.name}` +
           (row.isLeader ? ' 👑' : '') +
-          (row.isLast ? ' <span class="rescell p">🤡 last</span>' : '') +
+          (row.isLast && !archive ? ' <span class="rescell p">🤡 last</span>' : '') +
           (row.userId === selectedUser
             ? ' <span style="font-size:0.68rem;color:var(--accent);font-weight:700">YOU</span>'
             : ''),
@@ -52,7 +54,7 @@ export default function StandingsScreen({
         last5: formCells(row.last5),
         streak: row.streak,
       })),
-    [standings, selectedUser]
+    [standings, selectedUser, archive]
   );
 
   const abbr = (team: string) =>
@@ -190,12 +192,16 @@ export default function StandingsScreen({
           sortable
           columns={[
             { key: 'rank', header: '#', className: 'secondary-cell', sortable: true, sortType: 'numeric' },
-            { key: 'move', header: '', render: (value: string) => value },
+            ...(archive ? [] : [{ key: 'move', header: '', render: (value: string) => value }]),
             { key: 'player', header: 'Player', className: 'primary-cell', render: (value: string) => value },
             { key: 'record', header: 'Record', align: 'right', sortable: true, sortType: 'record' },
             { key: 'winPct', header: 'Win %', align: 'right', sortable: true, sortType: 'numeric' },
-            { key: 'last5', header: 'Last 5', align: 'right', render: (value: string) => value },
-            { key: 'streak', header: 'Streak', align: 'right' },
+            ...(archive
+              ? []
+              : [
+                  { key: 'last5', header: 'Last 5', align: 'right', render: (value: string) => value },
+                  { key: 'streak', header: 'Streak', align: 'right' },
+                ]),
           ]}
           rows={standingsRows}
           options={{
