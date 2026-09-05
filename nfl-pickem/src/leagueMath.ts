@@ -115,6 +115,36 @@ export const PLAYER_COLORS = [
 
 export const playerColor = (index: number) => PLAYER_COLORS[index % PLAYER_COLORS.length];
 
+// Rank standings after each graded week, for the bump chart.
+export function rankHistory(picks: Pick[], users: User[]) {
+  const weeks = Array.from(
+    new Set(
+      regularSeason(picks)
+        .filter((userWeek) => userWeek.picks.some((pick) => gradeOf(pick) !== null))
+        .map((userWeek) => userWeek.week)
+    )
+  ).sort((a, b) => a - b);
+
+  const rankings = new Map<string, Array<{ period: string; rank: number }>>(
+    users.map((user) => [user.id, []])
+  );
+
+  for (const week of weeks) {
+    const ordered = users
+      .map((user) => ({ user, record: calcRecord(userTeamPicks(picks, user.id, week)) }))
+      .sort((a, b) => b.record.wins - a.record.wins || b.record.pct - a.record.pct);
+    ordered.forEach((entry, index) => {
+      rankings.get(entry.user.id)!.push({ period: `W${week}`, rank: index + 1 });
+    });
+  }
+
+  return users.map((user, index) => ({
+    name: user.name,
+    color: playerColor(index),
+    rankings: rankings.get(user.id)!,
+  }));
+}
+
 // Cumulative win% by week per user, for the trend chart.
 export function cumulativeTrend(picks: Pick[], users: User[]) {
   const weeks = Array.from(
