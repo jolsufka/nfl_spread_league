@@ -1,0 +1,14 @@
+{
+  "season": 2026,
+  "week1TuesdayEt": "2026-09-08",
+  "regularSeasonWeeks": 18,
+  "mode": "regular",
+  "playoffRound": null,
+  "title": "2026-27 NFL Spread Pick-Em",
+  "playoffRounds": [
+    { "week": 100, "name": "Wild Card", "linesFile": "nfl_playoff_wildcard.csv" },
+    { "week": 101, "name": "Divisional", "linesFile": "nfl_playoff_divisional.csv" },
+    { "week": 102, "name": "Conference", "linesFile": "nfl_playoff_conference.csv" },
+    { "week": 103, "name": "Super Bowl", "linesFile": "nfl_playoff_superbowl.csv" }
+  ]
+}
