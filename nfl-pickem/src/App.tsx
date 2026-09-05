@@ -456,9 +456,6 @@ function App() {
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 14px' }}>
       <header
         style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 30,
           background: 'var(--paper)',
           borderBottom: '1px solid var(--line)',
           margin: '0 -14px',
