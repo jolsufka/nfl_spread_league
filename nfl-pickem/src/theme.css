@@ -1,0 +1,189 @@
+/* Spread League design tokens — "the betting sheet"
+   Light = paper & ink with sheet green; dark = slate.
+   data-theme on <html> drives both the app and chart-factory. */
+
+:root {
+  --paper: #faf9f5;
+  --card: #ffffff;
+  --ink: #1a1c1e;
+  --ink-soft: #5b6167;
+  --line: #e6e4dd;
+  --accent: #0b6e4f;
+  --accent-ink: #ffffff;
+  --accent-soft: #e4f0ea;
+  --win: #0b6e4f;
+  --loss: #b3362c;
+  --push: #9a6a12;
+  --win-bg: #e4f0ea;
+  --loss-bg: #f7e8e6;
+  --push-bg: #f5edda;
+  --chip: #edebe4;
+  --live: #b3362c;
+  --shadow: 0 1px 3px rgba(20, 22, 20, 0.07);
+
+  /* chart-factory token bridge */
+  --chart-primary: var(--accent);
+  --chart-trend-up: var(--win);
+  --chart-trend-down: var(--loss);
+  /* default table bar/heatmap ramp -> sheet green */
+  --scale-orange-lo: var(--accent-soft);
+  --scale-orange-hi: var(--accent);
+}
+
+:root[data-theme='dark'] {
+  --paper: #141618;
+  --card: #1d2023;
+  --ink: #e9eaec;
+  --ink-soft: #99a0a7;
+  --line: #2f3337;
+  --accent: #4fae8d;
+  --accent-ink: #0f1512;
+  --accent-soft: #1d2f28;
+  --win: #4fae8d;
+  --loss: #e58074;
+  --push: #d9a84e;
+  --win-bg: #1d2f28;
+  --loss-bg: #382523;
+  --push-bg: #342c1a;
+  --chip: #282c30;
+  --live: #e58074;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.disp {
+  font-family: 'Avenir Next Condensed', 'Arial Narrow', 'Helvetica Neue', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.sl-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.sl-sec {
+  font-family: 'Avenir Next Condensed', 'Arial Narrow', sans-serif;
+  text-transform: uppercase;
+  font-size: 1.02rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  margin: 22px 0 8px;
+  font-weight: 700;
+}
+
+/* result cells (matrix, last-5 form) */
+.rescell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 24px;
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  padding: 0 3px;
+}
+.rescell.w { background: var(--win-bg); color: var(--win); }
+.rescell.l { background: var(--loss-bg); color: var(--loss); }
+.rescell.p { background: var(--push-bg); color: var(--push); }
+.rescell.o { background: var(--chip); color: var(--ink-soft); font-weight: 500; }
+
+/* status pills */
+.sl-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.sl-pill.live { background: var(--loss-bg); color: var(--live); }
+.sl-pill.live::before { content: '●'; margin-right: 4px; animation: sl-blink 1.4s infinite; }
+@keyframes sl-blink { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .sl-pill.live::before { animation: none; } }
+.sl-pill.cover { background: var(--win-bg); color: var(--win); }
+.sl-pill.nocover { background: var(--loss-bg); color: var(--loss); }
+.sl-pill.edge { background: var(--push-bg); color: var(--push); }
+.sl-pill.soon { background: var(--chip); color: var(--ink-soft); }
+
+/* nav */
+.sl-topnav button {
+  font-family: 'Avenir Next Condensed', 'Arial Narrow', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 650;
+  font-size: 0.92rem;
+  border: none;
+  background: none;
+  color: var(--ink-soft);
+  padding: 7px 14px;
+  border-radius: 99px;
+  cursor: pointer;
+}
+.sl-topnav button.on { background: var(--accent); color: var(--accent-ink); }
+
+.sl-bottomnav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+}
+.sl-bottomnav button {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: 'Avenir Next Condensed', 'Arial Narrow', sans-serif;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  padding: 4px 0;
+}
+.sl-bottomnav button .ico { display: block; font-size: 1.05rem; margin-bottom: 1px; }
+.sl-bottomnav button.on { color: var(--accent); }
+
+@media (max-width: 640px) {
+  .sl-topnav { display: none; }
+  .sl-bottomnav { display: flex; }
+  body { padding-bottom: 76px; }
+}
+
+/* header controls */
+.sl-ctx {
+  font-size: 0.78rem;
+  font-weight: 650;
+  background: var(--chip);
+  border: 1px solid var(--line);
+  padding: 5px 10px;
+  border-radius: 99px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.sl-ctx select {
+  background: none;
+  border: none;
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
