@@ -203,7 +203,9 @@ body {
   white-space: nowrap;
 }
 .sl-card table td {
-  height: 44px;
+  height: 34px;
+  padding-top: 4px;
+  padding-bottom: 4px;
   box-sizing: border-box;
 }
 
