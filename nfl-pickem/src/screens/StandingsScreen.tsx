@@ -212,17 +212,14 @@ export default function StandingsScreen({
           rows={standingsRows}
           options={{
             stickyHeader: true,
-            ...(archive ? {} : { layout: 'fill' }),
+            layout: archive ? 'fixed' : 'fill',
             barColumns: [{ key: 'winPct' }],
           }}
         />
       </div>
 
       <h2 className="sl-sec">Weekly performance</h2>
-      <div
-        className="sl-card heat-compact"
-        style={{ padding: '4px 12px', width: 'fit-content', maxWidth: '100%' }}
-      >
+      <div className="sl-card" style={{ padding: '4px 12px' }}>
         <CfTable
           columns={heatColumns}
           rows={heatRows}
