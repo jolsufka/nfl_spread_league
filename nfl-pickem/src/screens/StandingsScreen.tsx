@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { CfTable, CfChart, ChartFactory } from '../charts';
 import { Pick, User } from '../types';
-import { computeStandings, cumulativeTrend, regularSeason, gradeOf, PLAYER_COLORS } from '../leagueMath';
+import { computeStandings, cumulativeTrend, rankHistory, regularSeason, gradeOf, PLAYER_COLORS } from '../leagueMath';
 import { getMascotName } from '../teamAssets';
 
 interface StandingsScreenProps {
@@ -30,6 +30,7 @@ export default function StandingsScreen({
 }: StandingsScreenProps) {
   const standings = useMemo(() => computeStandings(picks, users), [picks, users]);
   const trendSeries = useMemo(() => cumulativeTrend(picks, users), [picks, users]);
+  const bumpData = useMemo(() => rankHistory(picks, users), [picks, users]);
   const hasGraded = standings.some((row) => row.wins + row.losses + row.pushes > 0);
 
   const standingsRows = useMemo(
@@ -243,6 +244,18 @@ export default function StandingsScreen({
             yMin: 0,
             yMax: 100,
             annotations: [{ type: 'yLine', value: 50 }],
+          }}
+        />
+      </div>
+
+      <h2 className={`sl-sec${archive ? ' sl-breakout' : ''}`}>Rank by week</h2>
+      <div className={`sl-card${archive ? ' sl-breakout' : ''}`} style={{ padding: 14 }}>
+        <CfChart
+          create={(el, config) => ChartFactory.Line.createBumpChart(el, config)}
+          config={{
+            data: bumpData,
+            colors: PLAYER_COLORS.slice(0, users.length),
+            maxHeight: 460,
           }}
         />
       </div>
