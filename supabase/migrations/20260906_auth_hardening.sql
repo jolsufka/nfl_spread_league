@@ -177,8 +177,8 @@ BEGIN
 
   INSERT INTO picks (user_id, season, week, game_id, team, spread)
   SELECT v_player, p_season, p_week,
-         pick ->> 'game_id', pick ->> 'team', (pick ->> 'spread')::numeric
-  FROM jsonb_array_elements(p_picks) pick;
+         elem ->> 'game_id', elem ->> 'team', (elem ->> 'spread')::numeric
+  FROM jsonb_array_elements(p_picks) AS elem;
 
   RETURN 'ok';
 END $$;
