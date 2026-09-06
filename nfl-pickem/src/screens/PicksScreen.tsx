@@ -376,7 +376,8 @@ export default function PicksScreen({
                     <b style={{ color: 'var(--ink)', display: 'block', fontSize: '0.74rem' }}>
                       {locked ? '🔒 locked' : kickoffShort(game.kickoff_et)}
                     </b>
-                    {chip || `O/U ${game.total}`}
+                    <span style={{ display: 'block' }}>O/U {game.total}</span>
+                    {chip && <span style={{ display: 'block' }}>{chip}</span>}
                   </div>
                 </div>
               );
