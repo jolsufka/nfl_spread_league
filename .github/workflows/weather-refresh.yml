@@ -53,6 +53,9 @@ jobs:
           cache: npm
           cache-dependency-path: nfl-pickem/package-lock.json
 
+      - name: Use HTTPS for git dependencies
+        run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+
       - name: Build app
         if: env.changed == 'true'
         working-directory: nfl-pickem
