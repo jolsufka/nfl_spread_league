@@ -213,8 +213,12 @@ function App() {
   // Auth session + claimed-player resolution
   useEffect(() => {
     supabase.auth.getSession().then(({ data }: any) => setSession(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event: any, newSession: any) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event: any, newSession: any) => {
       setSession(newSession);
+      // Once the magic-link tokens are consumed, clean them out of the URL
+      if (event === 'SIGNED_IN' && /access_token|type=/.test(window.location.hash)) {
+        window.location.hash = '#/picks';
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -275,6 +279,9 @@ function App() {
 
   // URL <-> state: tabs and seasons live in the hash (#/standings, #/2025/standings)
   useEffect(() => {
+    // Magic-link logins land with auth tokens in the hash — never overwrite
+    // those before the Supabase client has consumed them
+    if (/access_token|refresh_token|error_code|type=/.test(window.location.hash)) return;
     const desired = buildHash(view, viewSeason, seasonConfig.season);
     if (window.location.hash !== desired) window.location.hash = desired;
   }, [view, viewSeason]);
