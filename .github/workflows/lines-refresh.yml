@@ -32,6 +32,7 @@ jobs:
       - name: Refresh current week's lines
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python3 scripts/script.py --refresh
 
       - name: Commit line updates
