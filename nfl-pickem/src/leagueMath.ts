@@ -115,6 +115,27 @@ export const PLAYER_COLORS = [
 
 export const playerColor = (index: number) => PLAYER_COLORS[index % PLAYER_COLORS.length];
 
+// Avatar identity: same color as the player's chart line, everywhere.
+const PLAYER_IDS = ['jacob', 'cam', 'connor', 'nathan', 'shane', 'max', 'john'];
+
+export const playerColorById = (id: string) =>
+  playerColor(Math.max(0, PLAYER_IDS.indexOf(id)));
+
+// Light text on most palette colors; dark on the two light ones (gold, sky)
+export const playerInkById = (id: string) => {
+  const index = Math.max(0, PLAYER_IDS.indexOf(id));
+  return index === 3 || index === 4 ? '#1a1c1e' : '#ffffff';
+};
+
+// Two-letter initials where single letters collide (Ja/Jo, Ca/Co)
+const INITIALS: { [name: string]: string } = {
+  Jacob: 'Ja',
+  John: 'Jo',
+  Cam: 'Ca',
+  Connor: 'Co',
+};
+export const playerInitials = (name: string) => INITIALS[name] ?? name[0];
+
 // Rank standings after each graded week, for the bump chart.
 export function rankHistory(picks: Pick[], users: User[]) {
   const weeks = Array.from(

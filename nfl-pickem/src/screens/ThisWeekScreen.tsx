@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Game, Pick, User, WeatherData } from '../types';
 import { useLiveScores, atsState, LiveGame } from '../espnLive';
-import { gradeOf } from '../leagueMath';
+import { gradeOf, playerColorById, playerInkById, playerInitials } from '../leagueMath';
 import { getTeamLogo, getMascotName } from '../teamAssets';
 
 interface ThisWeekScreenProps {
@@ -326,23 +326,24 @@ export default function ThisWeekScreen({
         const rowsMode = anyStarted && live.length > 0;
         const anyProvisional = rows.some((row) => row.provisional);
 
-        const avatar = (name: string) => (
+        const avatar = (member: User) => (
           <span
             style={{
               width: 20,
               height: 20,
               borderRadius: '50%',
-              background: 'var(--accent)',
-              color: 'var(--accent-ink)',
-              fontSize: '0.62rem',
+              background: playerColorById(member.id),
+              color: playerInkById(member.id),
+              fontSize: '0.56rem',
               fontWeight: 800,
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              letterSpacing: '-0.02em',
             }}
           >
-            {name[0]}
+            {playerInitials(member.name)}
           </span>
         );
 
@@ -362,7 +363,7 @@ export default function ThisWeekScreen({
                       fontSize: '0.82rem',
                     }}
                   >
-                    {avatar(user.name)}
+                    {avatar(user)}
                     <span style={{ fontWeight: 650, width: 58, flexShrink: 0 }}>{user.name}</span>
                     <span style={{ display: 'flex', gap: 5, flexWrap: 'wrap', flex: 1 }}>
                       {chips.length ? (
@@ -426,7 +427,7 @@ export default function ThisWeekScreen({
                       fontWeight: 600,
                     }}
                   >
-                    {avatar(user.name)}
+                    {avatar(user)}
                     {user.name}{' '}
                     <span className="tnum" style={{ color: 'var(--ink-soft)', fontWeight: 500 }}>
                       {label}
