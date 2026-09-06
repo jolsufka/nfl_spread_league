@@ -2197,6 +2197,7 @@ function PlayoffPickChart({ picks, users, currentPlayoffWeek, teamAbbreviations 
     };
 
     loadGamesForWeek();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedWeek]);
 
   const getAbbreviation = (teamName: string) => {

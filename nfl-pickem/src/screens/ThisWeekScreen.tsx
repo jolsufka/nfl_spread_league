@@ -53,10 +53,12 @@ export default function ThisWeekScreen({
   const anyStarted = games.some((game) => new Date(game.kickoff_et).getTime() <= now);
   const live = useLiveScores(currentWeek, anyStarted);
 
-  const myWeek = picks.find(
-    (userWeek) => userWeek.userId === selectedUser && userWeek.week === currentWeek
-  );
-  const myPicks = myWeek?.picks ?? [];
+  const myPicks = useMemo(() => {
+    const myWeek = picks.find(
+      (userWeek) => userWeek.userId === selectedUser && userWeek.week === currentWeek
+    );
+    return myWeek?.picks ?? [];
+  }, [picks, selectedUser, currentWeek]);
 
   const firstUnlocked = games
     .filter((game) => new Date(game.kickoff_et).getTime() > now)
