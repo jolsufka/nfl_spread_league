@@ -12,6 +12,7 @@ import {
 } from './seasonConfig';
 import { Game, WeatherData, TeamPick, Pick, User } from './types';
 import { getTeamLogo, getMascotName } from './teamAssets';
+import { playerColorById, playerInkById, playerInitials } from './leagueMath';
 import { startChartThemeSync } from './charts';
 import ThisWeekScreen from './screens/ThisWeekScreen';
 import PicksScreen from './screens/PicksScreen';
@@ -818,17 +819,19 @@ function App() {
                 width: 30,
                 height: 30,
                 borderRadius: '50%',
-                background: authedPlayer ? 'var(--accent)' : 'var(--push)',
-                color: 'var(--accent-ink)',
+                background: authedPlayer ? playerColorById(authedPlayer) : 'var(--push)',
+                color: authedPlayer ? playerInkById(authedPlayer) : 'var(--accent-ink)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 800,
-                fontSize: '0.8rem',
+                fontSize: '0.72rem',
                 cursor: 'pointer',
               }}
             >
-              {(users.find((user) => user.id === authedPlayer)?.name[0]) ?? '?'}
+              {authedPlayer
+                ? playerInitials(users.find((user) => user.id === authedPlayer)?.name ?? '?')
+                : '?'}
             </span>
           ) : (
             <>
@@ -851,7 +854,7 @@ function App() {
                     fontSize: '0.8rem',
                   }}
                 >
-                  {users.find((user) => user.id === selectedUser)?.name[0]}
+                  {playerInitials(users.find((user) => user.id === selectedUser)?.name ?? '?')}
                 </span>
               )}
             </>

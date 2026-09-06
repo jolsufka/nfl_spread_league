@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CfTable, CfChart, ChartFactory } from '../charts';
 import { Pick, User } from '../types';
 import { computeStandings, cumulativeTrend, rankHistory, regularSeason, gradeOf, PLAYER_COLORS } from '../leagueMath';
@@ -34,7 +34,37 @@ export default function StandingsScreen({
 }: StandingsScreenProps) {
   const standings = useMemo(() => computeStandings(picks, users), [picks, users]);
   const trendSeries = useMemo(() => cumulativeTrend(picks, users), [picks, users]);
-  const bumpData = useMemo(() => rankHistory(picks, users), [picks, users]);
+
+  // Phones can't fit 18 weekly rank dots — show 4-week checkpoints instead
+  const [narrow, setNarrow] = useState(
+    () => window.matchMedia('(max-width: 640px)').matches
+  );
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 640px)');
+    const onChange = (event: MediaQueryListEvent) => setNarrow(event.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  const bumpData = useMemo(() => {
+    const full = rankHistory(picks, users);
+    if (!narrow) return full;
+    const allPeriods = Array.from(
+      new Set(full.flatMap((entity) => entity.rankings.map((ranking) => ranking.period)))
+    );
+    const weekNum = (period: string) => parseInt(period.replace('W', ''), 10);
+    const maxWeek = Math.max(...allPeriods.map(weekNum), 1);
+    const keep = new Set(
+      allPeriods.filter((period) => {
+        const week = weekNum(period);
+        return (week - 1) % 4 === 0 || week === maxWeek;
+      })
+    );
+    return full.map((entity) => ({
+      ...entity,
+      rankings: entity.rankings.filter((ranking) => keep.has(ranking.period)),
+    }));
+  }, [picks, users, narrow]);
   const hasGraded = standings.some((row) => row.wins + row.losses + row.pushes > 0);
 
   const standingsRows = useMemo(

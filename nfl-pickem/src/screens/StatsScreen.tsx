@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { CfChart, ChartFactory } from '../charts';
 import { Pick, User } from '../types';
-import { gradeOf, userTeamPicks, recordString, streakOf } from '../leagueMath';
+import { gradeOf, userTeamPicks, recordString, streakOf, playerColorById, playerInkById, playerInitials } from '../leagueMath';
 import { getTeamLogo } from '../teamAssets';
 import { calcRecord } from '../seasonConfig';
 
@@ -104,16 +104,16 @@ export default function StatsScreen({ picks, users, selectedUser }: StatsScreenP
               width: 46,
               height: 46,
               borderRadius: '50%',
-              background: 'var(--accent)',
-              color: 'var(--accent-ink)',
+              background: playerColorById(profileId),
+              color: playerInkById(profileId),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 800,
-              fontSize: '1.1rem',
+              fontSize: '1.05rem',
             }}
           >
-            {users.find((user) => user.id === profileId)?.name[0]}
+            {playerInitials(users.find((user) => user.id === profileId)?.name ?? '?')}
           </div>
           <div>
             <div className="disp tnum" style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1 }}>
