@@ -10,6 +10,7 @@ interface PicksScreenProps {
   currentPicks: TeamPick[];
   weatherData: WeatherData[];
   picks: Pick[];
+  teamAbbreviations?: { [key: string]: string };
   onSavePicks: (picks: TeamPick[]) => Promise<boolean | undefined> | void;
   onSelectUser: (userId: string) => void;
 }
@@ -55,6 +56,7 @@ export default function PicksScreen({
   currentWeek,
   currentPicks,
   weatherData,
+  teamAbbreviations = {},
   onSavePicks,
   onSelectUser,
 }: PicksScreenProps) {
@@ -141,8 +143,11 @@ export default function PicksScreen({
         }}
       >
         <img src={getTeamLogo(team)} alt="" style={{ width: 24, height: 24, flexShrink: 0 }} />
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <span className="team-full" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {getMascotName(team)}
+        </span>
+        <span className="team-abbr">
+          {teamAbbreviations[team] || getMascotName(team).substring(0, 3).toUpperCase()}
         </span>
         <span
           className="tnum"

@@ -933,6 +933,7 @@ function App() {
             currentPicks={getCurrentUserPicks()?.picks || []}
             weatherData={weatherData}
             picks={picks}
+            teamAbbreviations={teamAbbreviations}
             onSavePicks={(teamPicks) => savePicks(selectedUser, currentWeek, teamPicks)}
             onSelectUser={selectUser}
           />
