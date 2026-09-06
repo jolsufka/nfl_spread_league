@@ -217,6 +217,14 @@ body {
   transform: translateX(-50%);
 }
 
+/* pick buttons: full mascot on wide screens, abbreviation on phones
+   (truncated mascots like "P.." are unreadable) */
+.team-abbr { display: none; font-weight: 700; letter-spacing: 0.02em; }
+@media (max-width: 560px) {
+  .team-full { display: none; }
+  .team-abbr { display: inline; }
+}
+
 /* card-less table (archive standings): no white surfaces anywhere */
 .sl-plain table,
 .sl-plain thead,
