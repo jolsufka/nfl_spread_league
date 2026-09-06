@@ -111,6 +111,40 @@ def update_pick_results(week: int, pick_results_df: pd.DataFrame,
     return True
 
 
+def upsert_games(lines_df: pd.DataFrame, week: int, season: int = DEFAULT_SEASON) -> bool:
+    """Mirror a lines CSV into the games table (server-side lock/line checks).
+
+    Best-effort: warns and returns False without the service key so local
+    fetches still work; CI must have SUPABASE_SERVICE_KEY set.
+    """
+    if not SUPABASE_SERVICE_KEY:
+        print("Warning: SUPABASE_SERVICE_KEY not set - games table NOT updated "
+              "(save_my_picks will validate against its last-known lines)")
+        return False
+
+    def num(value):
+        return None if pd.isna(value) else float(value)
+
+    rows = []
+    for _, row in lines_df.iterrows():
+        rows.append({
+            "season": season,
+            "week": int(week),
+            "id": str(row["id"]),
+            "event_id": str(row.get("event_id") or ""),
+            "away": row["away"],
+            "home": row["home"],
+            "kickoff": pd.Timestamp(row["kickoff_et"]).isoformat(),
+            "spread_away": num(row.get("spread_away")),
+            "spread_home": num(row.get("spread_home")),
+            "total": num(row.get("total")),
+        })
+    supabase = get_supabase_client(write=True)
+    supabase.table("games").upsert(rows, on_conflict="season,week,id").execute()
+    print(f"games table updated: {len(rows)} rows (season {season}, week {week})")
+    return True
+
+
 def calculate_user_stats(user_id: str, season: int = DEFAULT_SEASON) -> Dict:
     """Overall stats for a user. Pushes count in the denominator, not the numerator."""
     supabase = get_supabase_client()

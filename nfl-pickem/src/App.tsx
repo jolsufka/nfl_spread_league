@@ -51,6 +51,122 @@ const parseHash = (): { season: number | null; view: ViewKey | null } => {
 const buildHash = (view: ViewKey, season: number, currentSeason: number) =>
   season === currentSeason ? `#/${view}` : `#/${season}/${view}`;
 
+// ---- Auth: magic-link sign-in + one-time player claim ----
+
+function SignInCard({ onClose }: { onClose: () => void }) {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+
+  const send = async () => {
+    if (!email.includes('@')) return;
+    setStatus('sending');
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin + window.location.pathname },
+    });
+    if (error) {
+      setStatus('error');
+      setMessage(error.message);
+    } else {
+      setStatus('sent');
+    }
+  };
+
+  return (
+    <div className="sl-card" style={{ padding: '12px 16px', marginTop: 12 }}>
+      {status === 'sent' ? (
+        <div style={{ fontSize: '0.88rem' }}>
+          📬 Check <b>{email}</b> for your sign-in link. You can close this tab —
+          the link brings you back signed in.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 650, fontSize: '0.88rem' }}>Sign in:</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            onKeyDown={(event) => event.key === 'Enter' && send()}
+            placeholder="your@email.com"
+            style={{
+              flex: 1,
+              minWidth: 180,
+              padding: '7px 10px',
+              borderRadius: 8,
+              border: '1px solid var(--line)',
+              background: 'var(--paper)',
+              color: 'var(--ink)',
+              fontSize: '0.88rem',
+            }}
+          />
+          <button
+            onClick={send}
+            disabled={status === 'sending'}
+            style={{
+              background: 'var(--accent)',
+              color: 'var(--accent-ink)',
+              border: 'none',
+              borderRadius: 8,
+              fontWeight: 700,
+              padding: '8px 14px',
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+            }}
+          >
+            {status === 'sending' ? 'Sending…' : 'Email me a link'}
+          </button>
+          <button className="sl-ctx" onClick={onClose}>Cancel</button>
+          {status === 'error' && (
+            <span style={{ color: 'var(--loss)', fontSize: '0.8rem', width: '100%' }}>{message}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClaimCard({ users, onClaimed }: { users: User[]; onClaimed: (playerId: string) => void }) {
+  const [unclaimed, setUnclaimed] = useState<string[]>([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    supabase
+      .from('members')
+      .select('player_id, auth_uid')
+      .then(({ data }: any) => {
+        if (data) setUnclaimed(data.filter((row: any) => !row.auth_uid).map((row: any) => row.player_id));
+      });
+  }, []);
+
+  const claim = async (playerId: string) => {
+    const { data, error: rpcError } = await supabase.rpc('claim_player', { p_player_id: playerId });
+    if (rpcError || (typeof data === 'string' && data.startsWith('error'))) {
+      setError(rpcError?.message || String(data).replace('error: ', ''));
+      return;
+    }
+    onClaimed(playerId);
+  };
+
+  return (
+    <div className="sl-card" style={{ padding: '12px 16px', marginTop: 12 }}>
+      <div style={{ fontWeight: 650, marginBottom: 8, fontSize: '0.9rem' }}>
+        One last step — which one are you? <span style={{ color: 'var(--ink-soft)', fontWeight: 400 }}>(one claim, permanent)</span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {users
+          .filter((user) => unclaimed.includes(user.id))
+          .map((user) => (
+            <button key={user.id} className="sl-ctx" onClick={() => claim(user.id)} style={{ fontSize: '0.85rem' }}>
+              {user.name}
+            </button>
+          ))}
+      </div>
+      {error && <div style={{ color: 'var(--loss)', fontSize: '0.8rem', marginTop: 6 }}>{error}</div>}
+    </div>
+  );
+}
+
 interface PropBet {
   id: string;
   market: string;
@@ -90,6 +206,39 @@ function App() {
   const [playoffWeek, setPlayoffWeek] = useState(100);
   const [teamAbbreviations, setTeamAbbreviations] = useState<{ [key: string]: string }>({});
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
+  const [session, setSession] = useState<any>(null);
+  const [authedPlayer, setAuthedPlayer] = useState<string | null>(null);
+  const [signInOpen, setSignInOpen] = useState(false);
+
+  // Auth session + claimed-player resolution
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }: any) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event: any, newSession: any) => {
+      setSession(newSession);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      setAuthedPlayer(null);
+      return;
+    }
+    supabase
+      .from('members')
+      .select('player_id')
+      .eq('auth_uid', session.user.id)
+      .maybeSingle()
+      .then(({ data }: any) => {
+        if (data?.player_id) {
+          setAuthedPlayer(data.player_id);
+          setSelectedUser(data.player_id);
+          localStorage.setItem('nfl-pickem-user', data.player_id);
+        } else {
+          setAuthedPlayer(null);
+        }
+      });
+  }, [session]);
 
   // Theme drives the app AND chart-factory via the data-theme attribute
   useEffect(() => {
@@ -361,6 +510,46 @@ function App() {
   };
 
   const savePicks = async (userId: string, week: number, selectedPicks: TeamPick[]) => {
+    // Signed-in members save through the hardened RPC: the database verifies
+    // identity, kickoff locks, and current lines — the client is untrusted.
+    if (session && authedPlayer) {
+      try {
+        const payload = selectedPicks.map((pick) => {
+          let game_id = pick.gameId;
+          let team = pick.team;
+          switch (pick.pickType) {
+            case 'total': game_id = `${pick.gameId}-ou`; break;
+            case 'spread_h1': game_id = `${pick.gameId}-h1`; break;
+            case 'total_h1': game_id = `${pick.gameId}-h1-ou`; break;
+            case 'prop1':
+            case 'prop2':
+              game_id = pick.propId || pick.gameId;
+              team = pick.propSelection && pick.propSelection !== 'YES'
+                ? `PROP:${pick.propSelection}:${pick.team}`
+                : `PROP:YES:${pick.team}`;
+              break;
+            default: break;
+          }
+          return { game_id, team, spread: pick.spread };
+        });
+        const { data, error } = await supabase.rpc('save_my_picks', {
+          p_season: seasonConfig.season,
+          p_week: week,
+          p_picks: payload,
+        });
+        if (error) throw error;
+        if (typeof data === 'string' && data.startsWith('error')) {
+          alert(`Could not save: ${data.replace('error: ', '')}`);
+          return;
+        }
+        await loadPicks();
+      } catch (error: any) {
+        console.error('Error saving picks:', error);
+        alert(`Error saving picks: ${error.message || 'please try again'}`);
+      }
+      return;
+    }
+
     try {
       // Note the ids of the picks being replaced. New picks are inserted BEFORE
       // the old ones are deleted so a failed insert can never wipe existing picks.
@@ -535,30 +724,71 @@ function App() {
           >
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          {selectedUser ? (
+          {session ? (
             <span
-              title={users.find((user) => user.id === selectedUser)?.name}
+              title={`${session.user.email}${authedPlayer ? '' : ' — unclaimed'} · click to sign out`}
+              onClick={() => {
+                if (window.confirm('Sign out?')) supabase.auth.signOut();
+              }}
               style={{
                 width: 30,
                 height: 30,
                 borderRadius: '50%',
-                background: 'var(--accent)',
+                background: authedPlayer ? 'var(--accent)' : 'var(--push)',
                 color: 'var(--accent-ink)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 800,
                 fontSize: '0.8rem',
+                cursor: 'pointer',
               }}
             >
-              {users.find((user) => user.id === selectedUser)?.name[0]}
+              {(users.find((user) => user.id === authedPlayer)?.name[0]) ?? '?'}
             </span>
-          ) : null}
+          ) : (
+            <>
+              <button className="sl-ctx" onClick={() => setSignInOpen(!signInOpen)}>
+                Sign in
+              </button>
+              {selectedUser && (
+                <span
+                  title={users.find((user) => user.id === selectedUser)?.name}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: '50%',
+                    background: 'var(--chip)',
+                    color: 'var(--ink-soft)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  {users.find((user) => user.id === selectedUser)?.name[0]}
+                </span>
+              )}
+            </>
+          )}
         </div>
         <nav className="sl-topnav" style={{ display: 'flex', gap: 6, paddingBottom: 16 }}>
           {navButtons('top')}
         </nav>
       </header>
+
+      {signInOpen && !session && <SignInCard onClose={() => setSignInOpen(false)} />}
+      {session && !authedPlayer && (
+        <ClaimCard
+          users={users}
+          onClaimed={(playerId) => {
+            setAuthedPlayer(playerId);
+            setSelectedUser(playerId);
+            localStorage.setItem('nfl-pickem-user', playerId);
+          }}
+        />
+      )}
 
       {!isCurrentSeason && (
         <div

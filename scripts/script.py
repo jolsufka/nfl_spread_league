@@ -249,5 +249,12 @@ def main():
         df.to_csv(out, index=False)
         print(f"Saved: {out}")
 
+    if week_num:
+        from supabase_integration import upsert_games
+        try:
+            upsert_games(df, week_num, config["season"])
+        except Exception as e:
+            print(f"Warning: games table update failed: {e}")
+
 if __name__ == "__main__":
     main()
