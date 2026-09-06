@@ -116,6 +116,8 @@ export default function PicksScreen({
       (pick) => pick.gameId === game.id && pick.team === team
     );
     const locked = isGameLocked(game);
+    const opening = team === game.away ? game.opening_spread_away : game.opening_spread_home;
+    const moved = opening !== undefined && !Number.isNaN(opening) && opening !== spread;
     return (
       <button
         onClick={() => handleTeamToggle(game.id, team, spread)}
@@ -147,16 +149,45 @@ export default function PicksScreen({
             marginLeft: 'auto',
             fontWeight: 700,
             color: picked ? 'var(--accent)' : 'var(--ink-soft)',
+            textAlign: 'right',
+            lineHeight: 1.15,
           }}
         >
           {spread > 0 ? `+${spread}` : spread}
+          {moved && (
+            <small
+              style={{
+                display: 'block',
+                fontWeight: 500,
+                fontSize: '0.62rem',
+                color: 'var(--push)',
+              }}
+            >
+              open {opening! > 0 ? `+${opening}` : opening}
+            </small>
+          )}
         </span>
       </button>
     );
   };
 
+  const fetchedAt = games.find((game) => game.fetched_at)?.fetched_at;
+  const linesAge = (() => {
+    if (!fetchedAt) return null;
+    const then = new Date(fetchedAt);
+    if (Number.isNaN(then.getTime())) return null;
+    const hours = Math.floor((Date.now() - then.getTime()) / 3_600_000);
+    return hours < 1 ? 'just now' : hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
+  })();
+
   return (
     <div>
+      {linesAge && (
+        <p style={{ color: 'var(--ink-soft)', fontSize: '0.78rem', margin: '12px 2px 0' }}>
+          Lines updated {linesAge} · odds move during the week, and your number locks
+          in when you save — shop wisely
+        </p>
+      )}
       {!selectedUser && (
         <div className="sl-card" style={{ padding: '12px 16px', marginTop: 14 }}>
           <div style={{ fontWeight: 650, marginBottom: 8 }}>Who are you?</div>

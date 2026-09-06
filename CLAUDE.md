@@ -80,6 +80,11 @@ repo secrets, along with `SUPABASE_SERVICE_KEY`.
   lines, commits data, builds, deploys. Manual run: Actions tab → Run workflow
   (optional week input).
 - **weather-refresh.yml** — Thu/Sat/Sun 14:00 UTC: weather + deploy if changed.
+- **lines-refresh.yml** — every 6h Tue–Sat: refreshes the current week's lines
+  in place (`script.py --refresh`). Game ids and opening lines are preserved
+  via event_id matching, and **every pick grades against its own saved spread**
+  (grade_picks in results_script.py) — so mid-week line movement is safe and
+  players can line-shop by timing their picks.
 - Grading has **validation gates** that fail the job loudly (nonzero exit)
   instead of publishing bad data: unmatched games (exit 2), games not final
   (exit 3), ungraded picks (exit 4), Supabase update failure (exit 5).

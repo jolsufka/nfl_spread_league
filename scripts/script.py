@@ -129,6 +129,56 @@ def build_frame(spreads, totals, money):
     df.insert(0, "id", [str(i + 1) for i in range(len(df))])
     return df
 
+def apply_refresh_merge(df, existing_path):
+    """Stabilize a refreshed fetch against the previously published lines.
+
+    Picks reference games by id, so a refresh must NEVER renumber games:
+    existing events (matched by The Odds API event_id) keep their id and
+    their opening lines; brand-new events get the next free ids. Every row
+    gets a fetched_at stamp for the app's freshness display.
+    """
+    now_et = dt.datetime.now(pytz.timezone("America/New_York"))
+    if existing_path is not None and os.path.exists(str(existing_path)):
+        old = pd.read_csv(existing_path, dtype={"id": str, "event_id": str})
+        old_by_event = {
+            str(row["event_id"]): row
+            for _, row in old.iterrows()
+            if pd.notna(row.get("event_id"))
+        }
+        used_ids = [int(row["id"]) for _, row in old.iterrows()
+                    if str(row.get("id", "")).isdigit()]
+        next_id = max(used_ids) + 1 if used_ids else 1
+
+        def carry(prev, opening_col, current_col):
+            value = prev.get(opening_col)
+            return value if pd.notna(value) else prev.get(current_col)
+
+        ids, opening_away, opening_home, opening_total = [], [], [], []
+        for _, row in df.iterrows():
+            prev = old_by_event.get(str(row["event_id"]))
+            if prev is not None:
+                ids.append(str(prev["id"]))
+                opening_away.append(carry(prev, "opening_spread_away", "spread_away"))
+                opening_home.append(carry(prev, "opening_spread_home", "spread_home"))
+                opening_total.append(carry(prev, "opening_total", "total"))
+            else:
+                ids.append(str(next_id))
+                next_id += 1
+                opening_away.append(row["spread_away"])
+                opening_home.append(row["spread_home"])
+                opening_total.append(row["total"])
+        df["id"] = ids
+        df["opening_spread_away"] = opening_away
+        df["opening_spread_home"] = opening_home
+        df["opening_total"] = opening_total
+        df = df.sort_values(by="id", key=lambda s: s.astype(int)).reset_index(drop=True)
+    else:
+        df["opening_spread_away"] = df["spread_away"]
+        df["opening_spread_home"] = df["spread_home"]
+        df["opening_total"] = df["total"]
+    df["fetched_at"] = now_et.isoformat(timespec="seconds")
+    return df
+
 def main():
     ap = argparse.ArgumentParser(
         description="Fetch NFL lines for a week. Week timing comes from "
@@ -144,6 +194,9 @@ def main():
     ap.add_argument("--csv", help="Override output path (skips the public/ copy)")
     ap.add_argument("--force", action="store_true",
                     help="Overwrite an existing lines file (changes spreads users picked against!)")
+    ap.add_argument("--refresh", action="store_true",
+                    help="Refresh lines in place: game ids and opening lines are preserved "
+                         "(picks grade against their own saved spread, so this is safe)")
     ap.add_argument("--skip-if-exists", action="store_true",
                     help="Exit 0 quietly if the lines file already exists (for scheduled runs)")
     args = ap.parse_args()
@@ -169,13 +222,14 @@ def main():
         sys.exit("Provide --week (or --csv) when using --start-et.")
 
     existing = [str(p) for p in outputs if os.path.exists(p)]
-    if existing and not args.force:
+    if existing and not args.force and not args.refresh:
         if args.skip_if_exists:
             print(f"Lines already fetched ({existing[0]}); nothing to do.")
             return
         sys.exit(
             "Refusing to overwrite existing lines (picks may reference them): "
-            + ", ".join(existing) + "\nUse --force to refetch."
+            + ", ".join(existing) + "\nUse --refresh to update lines in place "
+            "(ids/openings preserved) or --force to clobber."
         )
 
     t_from = iso_z(start)
@@ -188,6 +242,7 @@ def main():
     df = build_frame(spreads, totals, money)
     if df.empty:
         sys.exit(f"No games/odds between {start} and {end} — wrong week or season.json?")
+    df = apply_refresh_merge(df, existing[0] if existing else None)
     print(df[["id","kickoff_et","away","home","spread_away","spread_home","total"]].to_string(index=False))
     for out in outputs:
         os.makedirs(os.path.dirname(str(out)) or ".", exist_ok=True)

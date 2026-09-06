@@ -9,6 +9,10 @@ export interface Game {
   spread_home: number;
   total: number;
   spreads_book?: string;
+  // live-lines metadata (present after the first refresh)
+  opening_spread_away?: number;
+  opening_spread_home?: number;
+  fetched_at?: string;
   // First half lines (Super Bowl only)
   spread_h1_away?: number;
   spread_h1_home?: number;

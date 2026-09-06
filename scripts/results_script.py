@@ -153,37 +153,66 @@ def calculate_ats(lines_df: pd.DataFrame, scores_df: pd.DataFrame):
 
 
 def grade_picks(picks_df: pd.DataFrame, results_df: pd.DataFrame) -> pd.DataFrame:
-    """Grade each pick against the results. Joins on game_id, falls back to
-    team name. Understands spread picks and O/U picks ('-ou' game_id suffix)."""
+    """Grade each pick against ITS OWN stored line (live-lines aware).
+
+    With in-week line refreshes, two players can hold different numbers on
+    the same game — so the game-level ATS columns are only used for the
+    analytics CSV, never for grading. Per pick:
+      spread pick:  margin(picked team) + pick.spread  -> W / L / P
+      O/U pick:     actual total vs pick.spread        -> W / L / P
+    Playoff-only formats (-h1, PROP:) are left ungraded with a warning.
+    Joins on game_id with a team-name fallback; any missing line, missing
+    game, or team/game mismatch leaves the pick ungraded so the validation
+    gate fails loudly instead of guessing.
+    """
     graded = []
     by_game_id = {str(r["game_id"]): r for _, r in results_df.iterrows()}
 
     for _, pick in picks_df.iterrows():
         game_id = str(pick["game_id"])
-        team = pick["team"]
+        team = str(pick["team"])
+        line = pick.get("spread")
         result = None
+        game = None
 
-        if game_id.endswith("-ou") or team.startswith("O/U:"):
+        if game_id.endswith("-h1") or game_id.endswith("-h1-ou") or team.startswith("PROP:"):
+            print(f"Warning: playoff-format pick needs manual grading: "
+                  f"{pick['user_id']} - {team} ({game_id})")
+        elif game_id.endswith("-ou") or team.startswith("O/U:"):
             game = by_game_id.get(game_id.replace("-ou", ""))
-            if game is not None and game["over_under"]:
+            if game is not None and pd.notna(line):
                 selection = team.replace("O/U:", "").strip().upper()
-                if game["over_under"] == "PUSH":
+                actual_total = float(game["actual_total"])
+                total_line = float(line)
+                if actual_total == total_line:
                     result = "P"
+                elif (actual_total > total_line) == (selection == "OVER"):
+                    result = "W"
                 else:
-                    result = "W" if game["over_under"] == selection else "L"
+                    result = "L"
         else:
             game = by_game_id.get(game_id)
             if game is None:  # legacy picks: match by team name
                 match = results_df[(results_df["home"] == team) | (results_df["away"] == team)]
                 game = match.iloc[0] if not match.empty else None
-            if game is not None:
-                side = "home_ats_result" if game["home"] == team else "away_ats_result"
-                result = game[side]
+            if game is not None and pd.notna(line):
+                if game["home"] == team:
+                    margin = game["home_score"] - game["away_score"]
+                elif game["away"] == team:
+                    margin = game["away_score"] - game["home_score"]
+                else:
+                    margin = None  # id joined a game that doesn't contain the team
+                    print(f"Warning: pick/game mismatch: {pick['user_id']} picked "
+                          f"'{team}' but game {game_id} is {game['away']} @ {game['home']}")
+                if margin is not None:
+                    ats_margin = margin + float(line)
+                    result = "W" if ats_margin > 0 else "L" if ats_margin < 0 else "P"
 
         graded.append({
             "user": pick["user_id"],
             "game_id": pick["game_id"],
             "team": team,
+            "spread": line,
             "result": result,
             "game_date": str(game["kickoff_et"])[:10] if game is not None else "",
         })

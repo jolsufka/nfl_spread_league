@@ -1,0 +1,70 @@
+name: Lines refresh
+
+# Every 6 hours Tue-Sat: pull the latest lines for the current week.
+# Game ids and opening lines are preserved (picks grade against their own
+# saved spread), so refreshing mid-week is safe by design.
+on:
+  schedule:
+    - cron: '0 0,6,12,18 * * 2-6'
+  workflow_dispatch:
+
+concurrency:
+  group: lines-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lines:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Refresh current week's lines
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python3 scripts/script.py --refresh
+
+      - name: Commit line updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/lines nfl-pickem/public/lines
+          if git diff --cached --quiet; then
+            echo "No line changes"
+            echo "changed=false" >> "$GITHUB_ENV"
+          else
+            git commit -m "Lines refresh ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+            git push
+            echo "changed=true" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: env.changed == 'true'
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: nfl-pickem/package-lock.json
+
+      - name: Build app
+        if: env.changed == 'true'
+        working-directory: nfl-pickem
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to GitHub Pages
+        if: env.changed == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: nfl-pickem/build
