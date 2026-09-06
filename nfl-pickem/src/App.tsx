@@ -204,6 +204,10 @@ function ClaimCard({ users, onClaimed }: { users: User[]; onClaimed: (playerId: 
   }, []);
 
   const claim = async (playerId: string) => {
+    const name = users.find((user) => user.id === playerId)?.name ?? playerId;
+    if (!window.confirm(`Claim "${name}" as YOUR name? This is permanent — you are ${name} forever.`)) {
+      return;
+    }
     const { data, error: rpcError } = await supabase.rpc('claim_player', { p_player_id: playerId });
     if (rpcError || (typeof data === 'string' && data.startsWith('error'))) {
       setError(rpcError?.message || String(data).replace('error: ', ''));
