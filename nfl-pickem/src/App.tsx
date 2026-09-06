@@ -53,6 +53,67 @@ const buildHash = (view: ViewKey, season: number, currentSeason: number) =>
 
 // ---- Auth: magic-link sign-in + one-time player claim ----
 
+function CodeEntry({ email }: { email: string }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);
+
+  const verify = async () => {
+    if (code.trim().length < 6) return;
+    setChecking(true);
+    setError('');
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token: code.trim(),
+      type: 'email',
+    });
+    setChecking(false);
+    if (verifyError) setError(verifyError.message);
+    // success: onAuthStateChange takes over
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <input
+        inputMode="numeric"
+        value={code}
+        onChange={(event) => setCode(event.target.value)}
+        onKeyDown={(event) => event.key === 'Enter' && verify()}
+        placeholder="123456"
+        maxLength={10}
+        style={{
+          width: 110,
+          padding: '7px 10px',
+          borderRadius: 8,
+          border: '1px solid var(--line)',
+          background: 'var(--paper)',
+          color: 'var(--ink)',
+          fontSize: '0.95rem',
+          letterSpacing: '0.15em',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      />
+      <button
+        onClick={verify}
+        disabled={checking}
+        style={{
+          background: 'var(--accent)',
+          color: 'var(--accent-ink)',
+          border: 'none',
+          borderRadius: 8,
+          fontWeight: 700,
+          padding: '8px 14px',
+          fontSize: '0.82rem',
+          cursor: 'pointer',
+        }}
+      >
+        {checking ? 'Checking…' : 'Verify code'}
+      </button>
+      {error && <span style={{ color: 'var(--loss)', fontSize: '0.8rem' }}>{error}</span>}
+    </div>
+  );
+}
+
 function SignInCard({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -76,9 +137,11 @@ function SignInCard({ onClose }: { onClose: () => void }) {
   return (
     <div className="sl-card" style={{ padding: '12px 16px', marginTop: 12 }}>
       {status === 'sent' ? (
-        <div style={{ fontSize: '0.88rem' }}>
-          📬 Check <b>{email}</b> for your sign-in link. You can close this tab —
-          the link brings you back signed in.
+        <div style={{ fontSize: '0.88rem', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div>
+            📬 Check <b>{email}</b> — tap the link, or type the 6-digit code from the email:
+          </div>
+          <CodeEntry email={email} />
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -209,6 +272,19 @@ function App() {
   const [session, setSession] = useState<any>(null);
   const [authedPlayer, setAuthedPlayer] = useState<string | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
+  const [authNotice, setAuthNotice] = useState('');
+
+  // Surface auth errors that arrive in the redirect URL (expired/consumed
+  // links etc.) instead of silently ignoring them
+  useEffect(() => {
+    const raw = window.location.hash + window.location.search;
+    const match = raw.match(/error_description=([^&]+)/) || raw.match(/error_code=([^&]+)/);
+    if (match) {
+      setAuthNotice(decodeURIComponent(match[1]).replace(/\+/g, ' '));
+      setSignInOpen(true);
+      window.location.hash = '#/picks';
+    }
+  }, []);
 
   // Auth session + claimed-player resolution
   useEffect(() => {
@@ -785,6 +861,21 @@ function App() {
         </nav>
       </header>
 
+      {authNotice && !session && (
+        <div
+          className="sl-card"
+          style={{
+            marginTop: 12,
+            padding: '10px 14px',
+            fontSize: '0.85rem',
+            color: 'var(--loss)',
+            background: 'var(--loss-bg)',
+          }}
+        >
+          Sign-in link problem: <b>{authNotice}</b>. Links are one-time and some email
+          apps pre-open them — request a fresh one and use the 6-digit code instead.
+        </div>
+      )}
       {signInOpen && !session && <SignInCard onClose={() => setSignInOpen(false)} />}
       {session && !authedPlayer && (
         <ClaimCard
