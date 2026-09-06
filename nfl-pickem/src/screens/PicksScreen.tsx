@@ -10,7 +10,7 @@ interface PicksScreenProps {
   currentPicks: TeamPick[];
   weatherData: WeatherData[];
   picks: Pick[];
-  onSavePicks: (picks: TeamPick[]) => void;
+  onSavePicks: (picks: TeamPick[]) => Promise<boolean | undefined> | void;
   onSelectUser: (userId: string) => void;
 }
 
@@ -60,6 +60,7 @@ export default function PicksScreen({
 }: PicksScreenProps) {
   const [selectedPicks, setSelectedPicks] = useState<TeamPick[]>(currentPicks);
   const [justSaved, setJustSaved] = useState(false);
+  const [celebratePicks, setCelebratePicks] = useState<TeamPick[] | null>(null);
 
   useEffect(() => {
     setSelectedPicks(currentPicks);
@@ -246,10 +247,14 @@ export default function PicksScreen({
           );
         })}
         <button
-          onClick={() => {
+          onClick={async () => {
             if (canSave) {
-              onSavePicks(selectedPicks);
-              setJustSaved(true);
+              const snapshot = [...selectedPicks];
+              const ok = await onSavePicks(snapshot);
+              if (ok) {
+                setCelebratePicks(snapshot);
+                setJustSaved(true);
+              }
             }
           }}
           disabled={!canSave}
@@ -273,6 +278,61 @@ export default function PicksScreen({
             : 'Save picks'}
         </button>
       </div>
+
+      {celebratePicks && (
+        <div
+          onClick={() => setCelebratePicks(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: 'var(--paper)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 26,
+            padding: 20,
+          }}
+        >
+          <div className="disp" style={{ fontSize: '0.85rem', letterSpacing: '0.2em', color: 'var(--accent)', fontWeight: 700 }}>
+            WEEK {currentWeek} · PICKS ARE IN
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+            {celebratePicks.map((pick, index) => (
+              <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                <img src={getTeamLogo(pick.team)} alt="" style={{ width: 72, height: 72 }} />
+                <div>
+                  <div className="disp" style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1.1 }}>
+                    {getMascotName(pick.team)}
+                  </div>
+                  <div className="tnum" style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent)' }}>
+                    {pick.spread > 0 ? `+${pick.spread}` : pick.spread}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
+            Locked to your numbers. Good luck. 🍀
+          </div>
+          <button
+            onClick={() => setCelebratePicks(null)}
+            style={{
+              background: 'var(--accent)',
+              color: 'var(--accent-ink)',
+              border: 'none',
+              borderRadius: 10,
+              fontWeight: 700,
+              padding: '12px 34px',
+              fontSize: '0.95rem',
+              cursor: 'pointer',
+            }}
+          >
+            Done
+          </button>
+        </div>
+      )}
 
       {grouped.map(([label, slotGames]) => (
         <React.Fragment key={label}>

@@ -623,14 +623,15 @@ function App() {
         if (error) throw error;
         if (typeof data === 'string' && data.startsWith('error')) {
           alert(`Could not save: ${data.replace('error: ', '')}`);
-          return;
+          return false;
         }
         await loadPicks();
+        return true;
       } catch (error: any) {
         console.error('Error saving picks:', error);
         alert(`Error saving picks: ${error.message || 'please try again'}`);
+        return false;
       }
-      return;
     }
 
     try {
@@ -714,12 +715,12 @@ function App() {
 
       // Reload picks to update UI
       await loadPicks();
-
-      alert('Picks saved successfully!');
+      return true;
 
     } catch (error) {
       console.error('Error saving picks:', error);
       alert('Error saving picks. Please try again.');
+      return false;
     }
   };
 
