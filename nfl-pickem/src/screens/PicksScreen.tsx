@@ -123,6 +123,7 @@ export default function PicksScreen({
     const moved = opening !== undefined && !Number.isNaN(opening) && opening !== spread;
     return (
       <button
+        className="pick-side"
         onClick={() => handleTeamToggle(game.id, team, spread)}
         disabled={locked}
         style={{
@@ -350,6 +351,7 @@ export default function PicksScreen({
               return (
                 <div
                   key={game.id}
+                  className="pick-row"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -361,6 +363,7 @@ export default function PicksScreen({
                   {sideButton(game, game.away, game.spread_away)}
                   {sideButton(game, game.home, game.spread_home)}
                   <div
+                    className="pick-meta"
                     style={{
                       width: 92,
                       textAlign: 'center',
