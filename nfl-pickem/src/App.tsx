@@ -153,16 +153,21 @@ function App() {
         header: true,
         complete: (results) => {
           const csvGames: Game[] = results.data.map((row: any, index: number) => ({
-            id: `${index + 1}`,
+            // The CSV's id column is authoritative: it stays stable across
+            // line refreshes (picks reference games by this id)
+            id: row.id ? String(row.id) : `${index + 1}`,
             kickoff_et: row.kickoff_et,
             away: row.away,
             home: row.home,
             spread_away: parseFloat(row.spread_away),
             spread_home: parseFloat(row.spread_home),
             total: parseFloat(row.total),
-            spreads_book: row.spreads_book
+            spreads_book: row.spreads_book,
+            opening_spread_away: row.opening_spread_away ? parseFloat(row.opening_spread_away) : undefined,
+            opening_spread_home: row.opening_spread_home ? parseFloat(row.opening_spread_home) : undefined,
+            fetched_at: row.fetched_at
           })).filter(game => game.away && game.home); // Filter out empty rows
-          
+
           setGames(csvGames);
         },
         error: (error: any) => {
