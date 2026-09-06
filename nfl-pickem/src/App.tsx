@@ -983,6 +983,8 @@ function App() {
             selectedUser={selectedUser}
             season={viewSeason}
             archive={!isCurrentSeason}
+            currentWeek={currentWeek}
+            games={games}
           />
           {isCurrentSeason && mode === 'playoffs' && (
             <>
