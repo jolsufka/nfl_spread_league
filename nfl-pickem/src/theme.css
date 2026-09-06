@@ -103,6 +103,12 @@ body {
 .rescell.l { background: var(--loss-bg); color: var(--loss); }
 .rescell.p { background: var(--push-bg); color: var(--push); }
 .rescell.o { background: var(--chip); color: var(--ink-soft); font-weight: 500; }
+.rescell.lv {
+  background: transparent;
+  border: 1.5px solid var(--push);
+  color: var(--push);
+  font-weight: 600;
+}
 
 /* status pills */
 .sl-pill {

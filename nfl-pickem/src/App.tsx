@@ -919,6 +919,7 @@ function App() {
           selectedUser={selectedUser}
           currentWeek={activeWeek}
           weatherData={weatherData}
+          teamAbbreviations={teamAbbreviations}
           onGoPick={() => setView('picks')}
         />
       )}
