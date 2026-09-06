@@ -223,6 +223,20 @@ body {
 @media (max-width: 560px) {
   .team-full { display: none; }
   .team-abbr { display: inline; }
+
+  /* free up horizontal room inside game tiles on phones */
+  .pick-row {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    gap: 8px !important;
+  }
+  .pick-side {
+    padding: 8px 9px !important;
+    gap: 7px !important;
+  }
+  .pick-meta {
+    width: 74px !important;
+  }
 }
 
 /* card-less table (archive standings): no white surfaces anywhere */
