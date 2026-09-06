@@ -3,7 +3,6 @@ import { Game, Pick, User, WeatherData } from '../types';
 import { useLiveScores, atsState, LiveGame } from '../espnLive';
 import { gradeOf } from '../leagueMath';
 import { getTeamLogo, getMascotName } from '../teamAssets';
-import { calcRecord } from '../seasonConfig';
 
 interface ThisWeekScreenProps {
   games: Game[];
@@ -12,6 +11,7 @@ interface ThisWeekScreenProps {
   selectedUser: string;
   currentWeek: number;
   weatherData: WeatherData[];
+  teamAbbreviations?: { [key: string]: string };
   onGoPick: () => void;
 }
 
@@ -47,6 +47,7 @@ export default function ThisWeekScreen({
   selectedUser,
   currentWeek,
   weatherData,
+  teamAbbreviations = {},
   onGoPick,
 }: ThisWeekScreenProps) {
   const now = Date.now();
@@ -259,60 +260,187 @@ export default function ThisWeekScreen({
       )}
 
       <h2 className="sl-sec">The league this week</h2>
-      <div
-        className="sl-card"
-        style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '12px 14px' }}
-      >
-        {users.map((user) => {
+      {(() => {
+        // Per-player week state: official grades, provisional results from
+        // finished-but-ungraded games, live scores, locked-pick privacy
+        const lockedIds = new Set(
+          games
+            .filter((game) => new Date(game.kickoff_et).getTime() <= now)
+            .map((game) => String(game.id))
+        );
+        const abbrOf = (team: string) =>
+          teamAbbreviations[team] || getMascotName(team).substring(0, 3).toUpperCase();
+
+        const rows = users.map((user) => {
           const userWeek = picks.find(
             (candidate) => candidate.userId === user.id && candidate.week === currentWeek
           );
-          const count = userWeek?.picks.length ?? 0;
-          const record = calcRecord(userWeek?.picks ?? []);
-          const label =
-            record.graded > 0
-              ? `${record.wins}–${record.losses}${record.pushes ? `–${record.pushes}` : ''}`
-              : count > 0
-              ? `${count} in`
-              : 'no picks yet';
+          const userPicks = userWeek?.picks ?? [];
+          let wins = 0;
+          let losses = 0;
+          let pushes = 0;
+          let pendingCount = 0;
+          let provisional = false;
+
+          const chips = userPicks.map((pick) => {
+            const label = `${abbrOf(pick.team)} ${pick.spread > 0 ? `+${pick.spread}` : pick.spread}`;
+            const grade = gradeOf(pick);
+            if (grade) {
+              if (grade === 'W') wins++;
+              else if (grade === 'L') losses++;
+              else pushes++;
+              return { label, cls: grade.toLowerCase() };
+            }
+            if (!lockedIds.has(String(pick.gameId))) {
+              pendingCount++;
+              return { label: '🔒', cls: 'o' };
+            }
+            const game = games.find((candidate) => candidate.id === pick.gameId);
+            const liveGame = game ? liveFor(game, live) : undefined;
+            if (liveGame?.completed) {
+              provisional = true;
+              const state = atsState(pick.team, pick.spread, liveGame);
+              if (state === 'covering') wins++;
+              else if (state === 'not-covering') losses++;
+              else pushes++;
+              const cls = state === 'covering' ? 'w' : state === 'not-covering' ? 'l' : 'p';
+              return { label, cls };
+            }
+            if (liveGame?.inProgress) {
+              pendingCount++;
+              const isHome = getMascotName(liveGame.home) === getMascotName(pick.team);
+              const pickedScore = isHome ? liveGame.homeScore : liveGame.awayScore;
+              const otherScore = isHome ? liveGame.awayScore : liveGame.homeScore;
+              return { label: `${label} · ${pickedScore}–${otherScore}`, cls: 'lv' };
+            }
+            pendingCount++;
+            return { label, cls: 'o' };
+          });
+
+          const graded = wins + losses + pushes;
+          const recordLabel =
+            `${wins}–${losses}${pushes ? `–${pushes}` : ''}` + (provisional ? '*' : '');
+          return { user, count: userPicks.length, chips, wins, losses, pushes, graded, pendingCount, provisional, recordLabel };
+        });
+
+        const rowsMode = anyStarted && live.length > 0;
+        const anyProvisional = rows.some((row) => row.provisional);
+
+        const avatar = (name: string) => (
+          <span
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              background: 'var(--accent)',
+              color: 'var(--accent-ink)',
+              fontSize: '0.62rem',
+              fontWeight: 800,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {name[0]}
+          </span>
+        );
+
+        if (rowsMode) {
           return (
-            <span
-              key={user.id}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                background: 'var(--chip)',
-                borderRadius: 99,
-                padding: '4px 10px 4px 5px',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-              }}
-            >
-              <span
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  background: 'var(--accent)',
-                  color: 'var(--accent-ink)',
-                  fontSize: '0.62rem',
-                  fontWeight: 800,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {user.name[0]}
-              </span>
-              {user.name} <span className="tnum" style={{ color: 'var(--ink-soft)', fontWeight: 500 }}>{label}</span>
-            </span>
+            <>
+              <div className="sl-card" style={{ padding: '4px 14px' }}>
+                {rows.map(({ user, chips, graded, recordLabel, wins, losses }) => (
+                  <div
+                    key={user.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '9px 0',
+                      borderBottom: '1px solid var(--line)',
+                      fontSize: '0.82rem',
+                    }}
+                  >
+                    {avatar(user.name)}
+                    <span style={{ fontWeight: 650, width: 58, flexShrink: 0 }}>{user.name}</span>
+                    <span style={{ display: 'flex', gap: 5, flexWrap: 'wrap', flex: 1 }}>
+                      {chips.length ? (
+                        chips.map((chip, index) => (
+                          <span key={index} className={`rescell ${chip.cls}`} style={{ padding: '0 6px' }}>
+                            {chip.label}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ color: 'var(--ink-soft)', fontSize: '0.78rem' }}>no picks</span>
+                      )}
+                    </span>
+                    {graded > 0 && (
+                      <span
+                        className="tnum"
+                        style={{
+                          fontWeight: 700,
+                          marginLeft: 'auto',
+                          flexShrink: 0,
+                          color: wins > losses ? 'var(--win)' : losses > wins ? 'var(--loss)' : 'var(--ink-soft)',
+                        }}
+                      >
+                        {recordLabel}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p style={{ color: 'var(--ink-soft)', fontSize: '0.78rem', margin: '10px 2px' }}>
+                {anyProvisional ? '* live results — official after Tuesday grading. ' : ''}
+                🔒 picks reveal when their game kicks off. Updates every minute during games.
+              </p>
+            </>
           );
-        })}
-      </div>
-      <p style={{ color: 'var(--ink-soft)', fontSize: '0.78rem', margin: '10px 2px' }}>
-        Picks stay hidden until each game locks. Live states update every minute on game days.
-      </p>
+        }
+
+        return (
+          <>
+            <div
+              className="sl-card"
+              style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '12px 14px' }}
+            >
+              {rows.map(({ user, count, graded, recordLabel, pendingCount }) => {
+                const label =
+                  graded > 0
+                    ? `${recordLabel}${pendingCount > 0 ? ` · ${pendingCount} left` : ' · done'}`
+                    : count > 0
+                    ? `${count} in`
+                    : 'no picks yet';
+                return (
+                  <span
+                    key={user.id}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: 'var(--chip)',
+                      borderRadius: 99,
+                      padding: '4px 10px 4px 5px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {avatar(user.name)}
+                    {user.name}{' '}
+                    <span className="tnum" style={{ color: 'var(--ink-soft)', fontWeight: 500 }}>
+                      {label}
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
+            <p style={{ color: 'var(--ink-soft)', fontSize: '0.78rem', margin: '10px 2px' }}>
+              Picks stay hidden until each game locks. Live states update every minute on game days.
+            </p>
+          </>
+        );
+      })()}
     </div>
   );
 }
