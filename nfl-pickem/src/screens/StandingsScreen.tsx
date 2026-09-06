@@ -11,6 +11,8 @@ interface StandingsScreenProps {
   selectedUser: string;
   season: number;
   archive?: boolean; // final-season recap: no movement arrows or recent form
+  currentWeek?: number;
+  games?: Array<{ id: string; kickoff_et: string }>; // current week, for lock gating
 }
 
 const formCells = (last5: Array<'W' | 'L' | 'P'>) =>
@@ -27,6 +29,8 @@ export default function StandingsScreen({
   selectedUser,
   season,
   archive = false,
+  currentWeek,
+  games = [],
 }: StandingsScreenProps) {
   const standings = useMemo(() => computeStandings(picks, users), [picks, users]);
   const trendSeries = useMemo(() => cumulativeTrend(picks, users), [picks, users]);
@@ -133,6 +137,14 @@ export default function StandingsScreen({
       })),
     ];
 
+    // Picks stay hidden until their game kicks off (you always see your own)
+    const now = Date.now();
+    const lockedIds = new Set(
+      games
+        .filter((game) => new Date(game.kickoff_et).getTime() <= now)
+        .map((game) => String(game.id))
+    );
+
     const rows = users.map((user) => {
       const row: { [key: string]: string } = { player: user.name };
       for (const week of weeks) {
@@ -143,6 +155,15 @@ export default function StandingsScreen({
         row[`w${week}`] = userWeek.picks
           .map((pick) => {
             const grade = gradeOf(pick);
+            const hidden =
+              !archive &&
+              week === currentWeek &&
+              grade === null &&
+              user.id !== selectedUser &&
+              !lockedIds.has(String(pick.gameId));
+            if (hidden) {
+              return '<span class="rescell o" title="hidden until kickoff">🔒</span>';
+            }
             const cls = grade ? grade.toLowerCase() : 'o';
             const label = pick.team.startsWith('O/U')
               ? pick.team.replace('O/U:', '')
@@ -155,7 +176,7 @@ export default function StandingsScreen({
     });
     return { matrixColumns: columns, matrixRows: rows };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picks, users, teamAbbreviations]);
+  }, [picks, users, teamAbbreviations, games, currentWeek, selectedUser, archive]);
 
   if (!hasGraded) {
     return (
