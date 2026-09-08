@@ -158,7 +158,7 @@ export default function StatsScreen({ picks, users, selectedUser }: StatsScreenP
 
       {hasData ? (
         <>
-          <h2 className="sl-sec">Favorites vs underdogs · win %</h2>
+          <h2 className="sl-sec">Favorites vs underdogs · correct %</h2>
           <div className="sl-card" style={{ padding: 14 }}>
             <CfChart
               create={(el, config) => ChartFactory.Bar.createGrouped(el, config)}
