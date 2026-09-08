@@ -780,14 +780,15 @@ function App() {
           padding: '0 14px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '30px 0 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="sl-hrow" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '30px 0 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             <img
               src={`${process.env.PUBLIC_URL}/plu-logo.png`}
               alt="PLU"
+              className="sl-crest"
               style={{ height: 46, width: 'auto', flexShrink: 0 }}
             />
-            <div className="disp" style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>
+            <div className="disp sl-wordmark" style={{ fontWeight: 700, lineHeight: 1 }}>
               Lutes Pick 'Em
               <small
                 style={{
@@ -809,8 +810,8 @@ function App() {
               onChange={(event) => setViewSeason(parseInt(event.target.value, 10))}
               aria-label="Season"
             >
-              <option value={seasonConfig.season}>Season {seasonConfig.season}</option>
-              <option value={2025}>Season 2025</option>
+              <option value={seasonConfig.season}>{seasonConfig.season}</option>
+              <option value={2025}>2025</option>
             </select>
           </span>
           <button
@@ -838,6 +839,7 @@ function App() {
                 fontWeight: 800,
                 fontSize: '0.72rem',
                 cursor: 'pointer',
+                flexShrink: 0,
               }}
             >
               {authedPlayer
@@ -863,6 +865,7 @@ function App() {
                     justifyContent: 'center',
                     fontWeight: 800,
                     fontSize: '0.8rem',
+                    flexShrink: 0,
                   }}
                 >
                   {playerInitials(users.find((user) => user.id === selectedUser)?.name ?? '?')}
@@ -871,7 +874,7 @@ function App() {
             </>
           )}
         </div>
-        <nav className="sl-topnav" style={{ display: 'flex', gap: 6, paddingBottom: 16 }}>
+        <nav className="sl-topnav">
           {navButtons('top')}
         </nav>
       </header>

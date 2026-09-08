@@ -130,7 +130,24 @@ body {
 .sl-pill.edge { background: var(--push-bg); color: var(--push); }
 .sl-pill.soon { background: var(--chip); color: var(--ink-soft); }
 
+/* header wordmark: never wraps; scales down on skinny screens */
+.sl-wordmark {
+  font-size: 2rem;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .sl-wordmark { font-size: 1.2rem; }
+  .sl-crest { height: 30px !important; }
+  .sl-ctx { padding: 0 8px; font-size: 0.7rem; }
+  .sl-hrow { gap: 8px !important; padding-top: 20px !important; }
+}
+
 /* nav */
+.sl-topnav {
+  display: flex;
+  gap: 6px;
+  padding-bottom: 16px;
+}
 .sl-topnav button {
   font-family: 'Avenir Next Condensed', 'Arial Narrow', sans-serif;
   text-transform: uppercase;
@@ -181,6 +198,7 @@ body {
 
 /* header controls — one consistent 28px control height */
 .sl-ctx {
+  flex-shrink: 0;
   font-size: 0.74rem;
   font-weight: 650;
   background: var(--chip);
