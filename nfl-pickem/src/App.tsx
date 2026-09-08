@@ -781,19 +781,26 @@ function App() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '30px 0 16px' }}>
-          <div className="disp" style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>
-            Spread League
-            <small
-              style={{
-                display: 'block',
-                fontSize: '0.62rem',
-                letterSpacing: '0.18em',
-                color: 'var(--accent)',
-                fontWeight: 700,
-              }}
-            >
-              {viewSeason} · {headerWeekLabel}
-            </small>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <img
+              src={`${process.env.PUBLIC_URL}/plu-logo.png`}
+              alt="PLU"
+              style={{ height: 46, width: 'auto', flexShrink: 0 }}
+            />
+            <div className="disp" style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>
+              Lutes Pick 'Em
+              <small
+                style={{
+                  display: 'block',
+                  fontSize: '0.62rem',
+                  letterSpacing: '0.18em',
+                  color: 'var(--accent)',
+                  fontWeight: 700,
+                }}
+              >
+                {viewSeason} · {headerWeekLabel}
+              </small>
+            </div>
           </div>
           <div style={{ flex: 1 }} />
           <span className="sl-ctx">
