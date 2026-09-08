@@ -13,6 +13,7 @@ import {
 import { Game, WeatherData, TeamPick, Pick, User } from './types';
 import { getTeamLogo, getMascotName } from './teamAssets';
 import { playerColorById, playerInkById, playerInitials } from './leagueMath';
+import { pushSupport, currentSubscription, enableReminders } from './push';
 import { startChartThemeSync } from './charts';
 import ThisWeekScreen from './screens/ThisWeekScreen';
 import PicksScreen from './screens/PicksScreen';
@@ -51,6 +52,83 @@ const parseHash = (): { season: number | null; view: ViewKey | null } => {
 
 const buildHash = (view: ViewKey, season: number, currentSeason: number) =>
   season === currentSeason ? `#/${view}` : `#/${season}/${view}`;
+
+// ---- Push reminders opt-in (per device) ----
+
+function ReminderCard() {
+  const [state, setState] = useState<
+    'checking' | 'off' | 'on' | 'denied' | 'needs-homescreen' | 'unsupported'
+  >('checking');
+
+  useEffect(() => {
+    const support = pushSupport();
+    if (support === 'needs-homescreen') {
+      setState('needs-homescreen');
+      return;
+    }
+    if (support === 'unsupported') {
+      setState('unsupported');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      setState('denied');
+      return;
+    }
+    currentSubscription().then((subscription) => setState(subscription ? 'on' : 'off'));
+  }, []);
+
+  if (state === 'checking' || state === 'unsupported') return null;
+
+  return (
+    <div
+      className="sl-card"
+      style={{
+        marginTop: 12,
+        padding: '10px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        fontSize: '0.85rem',
+      }}
+    >
+      {state === 'on' && <span>🔔 Pick reminders are on for this device.</span>}
+      {state === 'denied' && (
+        <span style={{ color: 'var(--ink-soft)' }}>
+          🔕 Notifications are blocked for this app in your device settings.
+        </span>
+      )}
+      {state === 'needs-homescreen' && (
+        <span style={{ color: 'var(--ink-soft)' }}>
+          🔔 Want pick reminders? Add this site to your Home Screen (Share →
+          Add to Home Screen), then open it from the icon.
+        </span>
+      )}
+      {state === 'off' && (
+        <>
+          <span>Never miss a slate:</span>
+          <button
+            onClick={async () => {
+              const result = await enableReminders();
+              setState(result === 'ok' ? 'on' : result === 'denied' ? 'denied' : 'off');
+            }}
+            style={{
+              background: 'var(--accent)',
+              color: 'var(--accent-ink)',
+              border: 'none',
+              borderRadius: 8,
+              fontWeight: 700,
+              padding: '7px 14px',
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+            }}
+          >
+            🔔 Get pick reminders
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 // ---- Auth: magic-link sign-in + one-time player claim ----
 
@@ -939,6 +1017,9 @@ function App() {
           teamAbbreviations={teamAbbreviations}
           onGoPick={() => setView('picks')}
         />
+      )}
+      {effectiveView === 'week' && session && authedPlayer && (
+        <ReminderCard />
       )}
 
       {effectiveView === 'picks' &&
