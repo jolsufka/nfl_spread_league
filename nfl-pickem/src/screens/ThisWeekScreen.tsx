@@ -164,7 +164,7 @@ export default function ThisWeekScreen({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 650, fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
             {getMascotName(pick.team)}{' '}
-            <span className="tnum" style={{ color: 'var(--accent)', fontWeight: 700 }}>
+            <span className="tnum" style={{ color: 'var(--ink)', fontWeight: 700 }}>
               {pick.spread > 0 ? `+${pick.spread}` : pick.spread}
             </span>
           </div>
