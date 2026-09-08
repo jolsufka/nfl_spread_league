@@ -107,9 +107,11 @@ export default function StandingsScreen({
 
     const heatCell = (wins: number | null) => {
       if (wins === null) return '<span class="rescell o">—</span>';
+      // Semantic value scale (never brand-colored): 3 dark green, 2 green,
+      // 1 amber, 0 red
       const style =
         wins >= 3
-          ? 'background:var(--accent);color:var(--accent-ink)'
+          ? 'background:var(--win);color:var(--card)'
           : wins === 2
           ? 'background:var(--win-bg);color:var(--win)'
           : wins === 1
@@ -251,7 +253,7 @@ export default function StandingsScreen({
             ...(archive ? [] : [{ key: 'move', header: '', render: (value: string) => value }]),
             { key: 'player', header: 'Player', className: 'primary-cell', render: (value: string) => value },
             { key: 'record', header: 'Record', align: 'right', sortable: true, sortType: 'record' },
-            { key: 'winPct', header: 'Win %', align: 'right', sortable: true, sortType: 'numeric' },
+            { key: 'winPct', header: 'Correct %', align: 'right', sortable: true, sortType: 'numeric' },
             ...(archive
               ? []
               : [
@@ -278,7 +280,7 @@ export default function StandingsScreen({
         />
       </div>
 
-      <h2 className={`sl-sec${archive ? ' sl-breakout' : ''}`}>Cumulative win %</h2>
+      <h2 className={`sl-sec${archive ? ' sl-breakout' : ''}`}>Cumulative correct %</h2>
       <div className={`sl-card${archive ? ' sl-breakout' : ''}`} style={{ padding: 14 }}>
         <CfChart
           create={(el, config) => ChartFactory.Line.createMulti(el, config)}
