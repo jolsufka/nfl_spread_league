@@ -4,3 +4,4 @@ pytz>=2024.1
 supabase>=2.0
 PyYAML>=6.0
 python-dateutil>=2.8
+pywebpush>=1.14
