@@ -155,7 +155,7 @@ export default function PicksScreen({
           style={{
             marginLeft: 'auto',
             fontWeight: 700,
-            color: picked ? 'var(--accent)' : 'var(--ink-soft)',
+            color: picked ? 'var(--ink)' : 'var(--ink-soft)',
             textAlign: 'right',
             lineHeight: 1.15,
           }}
@@ -312,7 +312,7 @@ export default function PicksScreen({
                   <div className="disp" style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1.1 }}>
                     {getMascotName(pick.team)}
                   </div>
-                  <div className="tnum" style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent)' }}>
+                  <div className="tnum" style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--ink)' }}>
                     {pick.spread > 0 ? `+${pick.spread}` : pick.spread}
                   </div>
                 </div>
