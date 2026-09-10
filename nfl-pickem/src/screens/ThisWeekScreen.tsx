@@ -77,7 +77,42 @@ export default function ThisWeekScreen({
 
   const trackerRows = myPicks.map((pick, index) => {
     const game = games.find((candidate) => candidate.id === pick.gameId);
-    if (!game) return null;
+    if (!game) {
+      // No line row for this pick (the game kicked off and a lines refresh
+      // dropped it) — a made pick must stay visible regardless.
+      const orphanGrade = gradeOf(pick);
+      return (
+        <div
+          key={index}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '11px 14px',
+            borderBottom: '1px solid var(--line)',
+          }}
+        >
+          <img src={getTeamLogo(pick.team)} alt="" style={{ width: 34, height: 34 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 650, fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
+              {getMascotName(pick.team)}{' '}
+              <span className="tnum" style={{ color: 'var(--ink)', fontWeight: 700 }}>
+                {pick.spread > 0 ? `+${pick.spread}` : pick.spread}
+              </span>
+            </div>
+          </div>
+          {orphanGrade === 'W' ? (
+            <span className="sl-pill cover">Covered ✓</span>
+          ) : orphanGrade === 'L' ? (
+            <span className="sl-pill nocover">Missed ✗</span>
+          ) : orphanGrade === 'P' ? (
+            <span className="sl-pill edge">Push</span>
+          ) : (
+            <span className="sl-pill soon">Locked</span>
+          )}
+        </div>
+      );
+    }
     const liveGame = liveFor(game, live);
     const isHome = game.home === pick.team;
     const opponent = isHome ? `vs ${getMascotName(game.away)}` : `@ ${getMascotName(game.home)}`;
@@ -291,11 +326,13 @@ export default function ThisWeekScreen({
               else pushes++;
               return { label, cls: grade.toLowerCase() };
             }
-            if (!lockedIds.has(String(pick.gameId))) {
+            const game = games.find((candidate) => candidate.id === pick.gameId);
+            // A pick with no line row belongs to a game that already kicked
+            // off (refreshes drop finished games) — locked, so show it.
+            if (game && !lockedIds.has(String(pick.gameId))) {
               pendingCount++;
               return { label: '🔒', cls: 'o' };
             }
-            const game = games.find((candidate) => candidate.id === pick.gameId);
             const liveGame = game ? liveFor(game, live) : undefined;
             if (liveGame?.completed) {
               provisional = true;

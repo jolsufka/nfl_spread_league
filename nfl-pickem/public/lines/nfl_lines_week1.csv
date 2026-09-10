@@ -1,4 +1,5 @@
 id,kickoff_et,away,home,spread_away,spread_away_price,spread_home,spread_home_price,total,over_price,under_price,ml_away,ml_home,spreads_book,totals_book,h2h_book,event_id,opening_spread_away,opening_spread_home,opening_total,fetched_at
+1,2026-09-09 20:20:00-04:00,New England Patriots,Seattle Seahawks,3.0,-102,-3.0,-118,44.5,-105,-115,140,-166,DraftKings,DraftKings,DraftKings,8c94552d022acec4a0458d70c19d3da9,3.5,-3.5,44.5,2026-09-09T16:10:45-04:00
 2,2026-09-10 20:35:00-04:00,San Francisco 49ers,Los Angeles Rams,3.5,-102,-3.5,-118,48.5,-105,-115,164,-198,DraftKings,DraftKings,DraftKings,acc580d74344ea3b31bbcdd057fe6a9c,3.5,-3.5,48.5,2026-09-10T11:26:22-04:00
 3,2026-09-13 13:00:00-04:00,Atlanta Falcons,Pittsburgh Steelers,3.5,-108,-3.5,-112,42.5,-105,-115,154,-185,DraftKings,DraftKings,DraftKings,95c01d1bb797d6df14824b106c5a9130,3.5,-3.5,42.5,2026-09-10T11:26:22-04:00
 4,2026-09-13 13:00:00-04:00,Baltimore Ravens,Indianapolis Colts,-3.5,-105,3.5,-115,47.5,-115,-105,-175,145,DraftKings,DraftKings,DraftKings,b6cfdcbafa61ce220ba87dc2d9b80c77,-3.5,3.5,48.5,2026-09-10T11:26:22-04:00

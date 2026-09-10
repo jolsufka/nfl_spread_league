@@ -134,8 +134,9 @@ def apply_refresh_merge(df, existing_path):
 
     Picks reference games by id, so a refresh must NEVER renumber games:
     existing events (matched by The Odds API event_id) keep their id and
-    their opening lines; brand-new events get the next free ids. Every row
-    gets a fetched_at stamp for the app's freshness display.
+    their opening lines; brand-new events get the next free ids; games the
+    API no longer returns (they kicked off) are carried forward unchanged.
+    Every row gets a fetched_at stamp for the app's freshness display.
     """
     now_et = dt.datetime.now(pytz.timezone("America/New_York"))
     if existing_path is not None and os.path.exists(str(existing_path)):
@@ -171,12 +172,23 @@ def apply_refresh_merge(df, existing_path):
         df["opening_spread_away"] = opening_away
         df["opening_spread_home"] = opening_home
         df["opening_total"] = opening_total
+        df["fetched_at"] = now_et.isoformat(timespec="seconds")
+        # The Odds API stops returning games once they kick off. Dropping
+        # those rows would orphan every pick on them (the app and grading
+        # both match picks to lines by id), so carry forward any previously
+        # published game missing from this fetch — lines and fetched_at
+        # frozen as last published.
+        fetched_events = {str(e) for e in df["event_id"]}
+        missing = old[~old["event_id"].astype(str).isin(fetched_events)]
+        if not missing.empty:
+            df = pd.concat([df, missing.reindex(columns=df.columns)],
+                           ignore_index=True)
         df = df.sort_values(by="id", key=lambda s: s.astype(int)).reset_index(drop=True)
     else:
         df["opening_spread_away"] = df["spread_away"]
         df["opening_spread_home"] = df["spread_home"]
         df["opening_total"] = df["total"]
-    df["fetched_at"] = now_et.isoformat(timespec="seconds")
+        df["fetched_at"] = now_et.isoformat(timespec="seconds")
     return df
 
 def main():
