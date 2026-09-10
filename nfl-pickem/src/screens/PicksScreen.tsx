@@ -13,6 +13,7 @@ interface PicksScreenProps {
   teamAbbreviations?: { [key: string]: string };
   onSavePicks: (picks: TeamPick[]) => Promise<boolean | undefined> | void;
   onSelectUser: (userId: string) => void;
+  claimedUserIds: string[] | null;
 }
 
 const isGameLocked = (game: Game) => new Date(game.kickoff_et).getTime() <= Date.now();
@@ -49,6 +50,51 @@ const weatherChip = (summary: string | undefined): string => {
   return parts.join(' · ');
 };
 
+// Name picker for visitors who aren't signed in. Claimed names are hidden —
+// those players sign in instead (null = members list still loading).
+export function WhoAreYouCard({
+  users,
+  claimedUserIds,
+  onSelect,
+}: {
+  users: User[];
+  claimedUserIds: string[] | null;
+  onSelect: (userId: string) => void;
+}) {
+  const available =
+    claimedUserIds === null ? null : users.filter((user) => !claimedUserIds.includes(user.id));
+  return (
+    <div className="sl-card" style={{ padding: '12px 16px', marginTop: 14 }}>
+      <div style={{ fontWeight: 650, marginBottom: 8 }}>Who are you?</div>
+      {available === null ? (
+        <div style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>Loading names…</div>
+      ) : available.length === 0 ? (
+        <div style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
+          Every name is claimed — use <b>Sign in</b> (top right) to make picks.
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {available.map((user) => (
+              <button
+                key={user.id}
+                onClick={() => onSelect(user.id)}
+                className="sl-ctx"
+                style={{ fontSize: '0.85rem' }}
+              >
+                {user.name}
+              </button>
+            ))}
+          </div>
+          <div style={{ color: 'var(--ink-soft)', fontSize: '0.78rem', marginTop: 8 }}>
+            Don't see your name? It's already claimed — use <b>Sign in</b> (top right) instead.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function PicksScreen({
   games,
   users,
@@ -59,6 +105,7 @@ export default function PicksScreen({
   teamAbbreviations = {},
   onSavePicks,
   onSelectUser,
+  claimedUserIds,
 }: PicksScreenProps) {
   const [selectedPicks, setSelectedPicks] = useState<TeamPick[]>(currentPicks);
   const [justSaved, setJustSaved] = useState(false);
@@ -187,6 +234,12 @@ export default function PicksScreen({
     return hours < 1 ? 'just now' : hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
   })();
 
+  // No name chosen yet: the picker is the whole screen — no browsing games
+  // or making picks until you say who you are.
+  if (!selectedUser) {
+    return <WhoAreYouCard users={users} claimedUserIds={claimedUserIds} onSelect={onSelectUser} />;
+  }
+
   return (
     <div>
       {linesAge && (
@@ -195,24 +248,6 @@ export default function PicksScreen({
           in when you save — shop wisely
         </p>
       )}
-      {!selectedUser && (
-        <div className="sl-card" style={{ padding: '12px 16px', marginTop: 14 }}>
-          <div style={{ fontWeight: 650, marginBottom: 8 }}>Who are you?</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {users.map((user) => (
-              <button
-                key={user.id}
-                onClick={() => onSelectUser(user.id)}
-                className="sl-ctx"
-                style={{ fontSize: '0.85rem' }}
-              >
-                {user.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="sl-card" style={{
         position: 'sticky', top: 8, zIndex: 20, display: 'flex', alignItems: 'center',
         gap: 10, padding: '10px 12px', margin: '14px 0',
