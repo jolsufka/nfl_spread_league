@@ -16,7 +16,7 @@ import { playerColorById, playerInkById, playerInitials } from './leagueMath';
 import { pushSupport, currentSubscription, enableReminders } from './push';
 import { startChartThemeSync } from './charts';
 import ThisWeekScreen from './screens/ThisWeekScreen';
-import PicksScreen from './screens/PicksScreen';
+import PicksScreen, { WhoAreYouCard } from './screens/PicksScreen';
 import StandingsScreen from './screens/StandingsScreen';
 import StatsScreen from './screens/StatsScreen';
 import './theme.css';
@@ -356,6 +356,9 @@ function App() {
   const [authedPlayer, setAuthedPlayer] = useState<string | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
   const [authNotice, setAuthNotice] = useState('');
+  // Claimed league names (members.auth_uid set): hidden from the anonymous
+  // "Who are you?" picker — a claimed name is only reachable by signing in.
+  const [claimedIds, setClaimedIds] = useState<string[] | null>(null);
 
   // Surface auth errors that arrive in the redirect URL (expired/consumed
   // links etc.) instead of silently ignoring them
@@ -402,6 +405,17 @@ function App() {
         }
       });
   }, [session]);
+
+  useEffect(() => {
+    supabase
+      .from('members')
+      .select('player_id, auth_uid')
+      .then(({ data }: any) => {
+        setClaimedIds(
+          data ? data.filter((row: any) => row.auth_uid).map((row: any) => row.player_id) : []
+        );
+      });
+  }, []);
 
   // Theme drives the app AND chart-factory via the data-theme attribute
   useEffect(() => {
@@ -816,6 +830,10 @@ function App() {
   };
 
   const selectUser = (userId: string) => {
+    const name = users.find((user) => user.id === userId)?.name ?? userId;
+    if (!window.confirm(`You're ${name}? All picks you make will be saved under this name.`)) {
+      return;
+    }
     setSelectedUser(userId);
     localStorage.setItem('nfl-pickem-user', userId);
   };
@@ -903,7 +921,11 @@ function App() {
             <span
               title={`${session.user.email}${authedPlayer ? '' : ' — unclaimed'} · click to sign out`}
               onClick={() => {
-                if (window.confirm('Sign out?')) supabase.auth.signOut();
+                if (window.confirm('Sign out?')) {
+                  supabase.auth.signOut();
+                  localStorage.removeItem('nfl-pickem-user');
+                  setSelectedUser('');
+                }
               }}
               style={{
                 width: 30,
@@ -931,7 +953,14 @@ function App() {
               </button>
               {selectedUser && (
                 <span
-                  title={users.find((user) => user.id === selectedUser)?.name}
+                  title={`${users.find((user) => user.id === selectedUser)?.name ?? selectedUser} · click to switch player`}
+                  onClick={() => {
+                    const name = users.find((user) => user.id === selectedUser)?.name ?? selectedUser;
+                    if (window.confirm(`Stop being ${name} on this device? You'll choose your name again (or sign in).`)) {
+                      localStorage.removeItem('nfl-pickem-user');
+                      setSelectedUser('');
+                    }
+                  }}
                   style={{
                     width: 30,
                     height: 30,
@@ -943,6 +972,7 @@ function App() {
                     justifyContent: 'center',
                     fontWeight: 800,
                     fontSize: '0.8rem',
+                    cursor: 'pointer',
                     flexShrink: 0,
                   }}
                 >
@@ -1035,21 +1065,12 @@ function App() {
             teamAbbreviations={teamAbbreviations}
             onSavePicks={(teamPicks) => savePicks(selectedUser, currentWeek, teamPicks)}
             onSelectUser={selectUser}
+            claimedUserIds={claimedIds}
           />
+        ) : !selectedUser ? (
+          <WhoAreYouCard users={users} claimedUserIds={claimedIds} onSelect={selectUser} />
         ) : (
           <div style={{ marginTop: 14 }}>
-            {!selectedUser && (
-              <div className="sl-card" style={{ padding: '12px 16px', marginBottom: 14 }}>
-                <div style={{ fontWeight: 650, marginBottom: 8 }}>Who are you?</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {users.map((user) => (
-                    <button key={user.id} onClick={() => selectUser(user.id)} className="sl-ctx">
-                      {user.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
             {playoffWeek === 103 && playoffGames.length > 0 ? (
               <SuperBowlPickInterface
                 game={playoffGames[0]}
