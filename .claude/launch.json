@@ -4,8 +4,13 @@
     {
       "name": "nfl-pickem",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["start", "--prefix", "nfl-pickem"],
-      "port": 3000
+      "runtimeArgs": [
+        "start",
+        "--prefix",
+        "nfl-pickem"
+      ],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

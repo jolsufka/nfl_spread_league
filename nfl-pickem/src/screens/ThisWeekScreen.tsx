@@ -67,49 +67,143 @@ export default function ThisWeekScreen({
 
   const anyLiveNow = live.some((game) => game.inProgress);
 
-  const myToday = useMemo(() => {
-    const graded = myPicks.map(gradeOf).filter(Boolean);
-    const wins = graded.filter((grade) => grade === 'W').length;
-    const losses = graded.filter((grade) => grade === 'L').length;
-    const pushes = graded.filter((grade) => grade === 'P').length;
-    return { wins, losses, pushes };
-  }, [myPicks]);
+  // Week record including provisional results from finished-but-ungraded
+  // games (official grades land Tuesday). Pushes stay in the record per the
+  // league's W-L-P convention.
+  const myWeekRecord = useMemo(() => {
+    let wins = 0;
+    let losses = 0;
+    let pushes = 0;
+    let pending = 0;
+    for (const pick of myPicks) {
+      let outcome = gradeOf(pick);
+      if (!outcome) {
+        const game = games.find((candidate) => candidate.id === pick.gameId);
+        const liveGame = game ? liveFor(game, live) : undefined;
+        if (liveGame?.completed) {
+          const state = atsState(pick.team, pick.spread, liveGame);
+          outcome = state === 'covering' ? 'W' : state === 'not-covering' ? 'L' : 'P';
+        }
+      }
+      if (outcome === 'W') wins += 1;
+      else if (outcome === 'L') losses += 1;
+      else if (outcome === 'P') pushes += 1;
+      else pending += 1;
+    }
+    return { wins, losses, pushes, pending, graded: wins + losses + pushes };
+  }, [myPicks, games, live]);
+
+  // "Margin verdict" result cell: verdict headline, cover margin subhead,
+  // score as context. Cover margin = picked team's final margin + their spread
+  // (positive covers, negative misses, zero pushes).
+  const fmtMargin = (value: number) => `${Math.round(Math.abs(value) * 10) / 10}`;
+
+  const verdictCell = (
+    tone: 'win' | 'loss' | 'push' | 'none',
+    verdict: string,
+    by?: string,
+    detail?: string
+  ) => {
+    const color =
+      tone === 'win'
+        ? 'var(--win)'
+        : tone === 'loss'
+          ? 'var(--loss)'
+          : tone === 'push'
+            ? 'var(--push)'
+            : 'var(--ink-soft)';
+    return (
+      <div
+        style={{
+          width: 118,
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 1,
+          padding: '8px 6px',
+          borderLeft: '1px solid var(--line)',
+          textAlign: 'center',
+          background:
+            tone === 'win'
+              ? 'var(--win-bg)'
+              : tone === 'loss'
+                ? 'var(--loss-bg)'
+                : tone === 'push'
+                  ? 'var(--push-bg)'
+                  : 'none',
+        }}
+      >
+        <span
+          className="disp"
+          style={{
+            fontSize: '0.92rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            lineHeight: 1.15,
+            color,
+          }}
+        >
+          {verdict}
+        </span>
+        {by && (
+          <span className="tnum" style={{ fontSize: '0.72rem', fontWeight: 600, color }}>
+            {by}
+          </span>
+        )}
+        {detail && (
+          <span className="tnum" style={{ fontSize: '0.7rem', color: 'var(--ink-soft)' }}>
+            {detail}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   const trackerRows = myPicks.map((pick, index) => {
+    const rowStyle: React.CSSProperties = {
+      display: 'flex',
+      alignItems: 'stretch',
+      borderBottom: index < myPicks.length - 1 ? '1px solid var(--line)' : 'none',
+    };
+    const leftStyle: React.CSSProperties = {
+      flex: 1,
+      minWidth: 0,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      padding: '11px 14px',
+    };
+
     const game = games.find((candidate) => candidate.id === pick.gameId);
     if (!game) {
       // No line row for this pick (the game kicked off and a lines refresh
       // dropped it) — a made pick must stay visible regardless.
       const orphanGrade = gradeOf(pick);
+      const orphanCell =
+        orphanGrade === 'W'
+          ? verdictCell('win', 'Hit')
+          : orphanGrade === 'L'
+            ? verdictCell('loss', 'Miss')
+            : orphanGrade === 'P'
+              ? verdictCell('push', 'Push', 'on the number')
+              : verdictCell('none', 'Locked');
       return (
-        <div
-          key={index}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '11px 14px',
-            borderBottom: '1px solid var(--line)',
-          }}
-        >
-          <img src={getTeamLogo(pick.team)} alt="" style={{ width: 34, height: 34 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 650, fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
-              {getMascotName(pick.team)}{' '}
-              <span className="tnum" style={{ color: 'var(--ink)', fontWeight: 700 }}>
-                {pick.spread > 0 ? `+${pick.spread}` : pick.spread}
-              </span>
+        <div key={index} style={rowStyle}>
+          <div style={leftStyle}>
+            <img src={getTeamLogo(pick.team)} alt="" style={{ width: 34, height: 34 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 650, fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
+                {getMascotName(pick.team)}{' '}
+                <span className="tnum" style={{ color: 'var(--ink)', fontWeight: 700 }}>
+                  {pick.spread > 0 ? `+${pick.spread}` : pick.spread}
+                </span>
+              </div>
             </div>
           </div>
-          {orphanGrade === 'W' ? (
-            <span className="sl-pill cover">Covered ✓</span>
-          ) : orphanGrade === 'L' ? (
-            <span className="sl-pill nocover">Missed ✗</span>
-          ) : orphanGrade === 'P' ? (
-            <span className="sl-pill edge">Push</span>
-          ) : (
-            <span className="sl-pill soon">Locked</span>
-          )}
+          {orphanCell}
         </div>
       );
     }
@@ -119,104 +213,70 @@ export default function ThisWeekScreen({
     const started = new Date(game.kickoff_et).getTime() <= now;
     const grade = gradeOf(pick);
 
-    let scoreBlock: React.ReactNode;
-    let statusPill: React.ReactNode;
-
+    let cell: React.ReactNode;
     if (liveGame && (liveGame.inProgress || liveGame.completed)) {
       const pickedScore = isHome ? liveGame.homeScore : liveGame.awayScore;
       const otherScore = isHome ? liveGame.awayScore : liveGame.homeScore;
-      const margin = pickedScore - otherScore;
-      scoreBlock = (
-        <div className="tnum" style={{ textAlign: 'right' }}>
-          <div className="disp" style={{ fontSize: '1.25rem', fontWeight: 700, lineHeight: 1.1 }}>
-            {pickedScore}–{otherScore}
-          </div>
-          <small style={{ color: 'var(--ink-soft)', fontSize: '0.68rem' }}>
-            {margin === 0
-              ? 'tied'
-              : `${getMascotName(pick.team)} by ${Math.abs(margin)}`}
-          </small>
-        </div>
-      );
+      const cover = pickedScore - otherScore + pick.spread;
+      const scoreText = `${pickedScore}–${otherScore}`;
+      const state = atsState(pick.team, pick.spread, liveGame);
       if (liveGame.completed) {
-        statusPill =
-          grade === 'W' ? (
-            <span className="sl-pill cover">Covered ✓</span>
-          ) : grade === 'L' ? (
-            <span className="sl-pill nocover">Missed ✗</span>
-          ) : grade === 'P' ? (
-            <span className="sl-pill edge">Push</span>
-          ) : (() => {
-            const state = atsState(pick.team, pick.spread, liveGame);
-            return state === 'covering' ? (
-              <span className="sl-pill cover">Covered*</span>
-            ) : state === 'not-covering' ? (
-              <span className="sl-pill nocover">Missed*</span>
-            ) : (
-              <span className="sl-pill edge">Push*</span>
-            );
-          })();
+        // Grades are official after Tuesday's run; until then the * marks a
+        // provisional result from the final score.
+        const outcome =
+          grade ?? (state === 'covering' ? 'W' : state === 'not-covering' ? 'L' : 'P');
+        const star = grade ? '' : '*';
+        cell =
+          outcome === 'W'
+            ? verdictCell('win', `Hit${star}`, `by ${fmtMargin(cover)}`, scoreText)
+            : outcome === 'L'
+              ? verdictCell('loss', `Miss${star}`, `by ${fmtMargin(cover)}`, scoreText)
+              : verdictCell('push', `Push${star}`, 'on the number', scoreText);
       } else {
-        const state = atsState(pick.team, pick.spread, liveGame);
-        statusPill =
-          state === 'covering' ? (
-            <span className="sl-pill cover">Covering</span>
-          ) : state === 'not-covering' ? (
-            <span className="sl-pill nocover">Not covering</span>
-          ) : (
-            <span className="sl-pill edge">On the number</span>
-          );
+        cell =
+          state === 'covering'
+            ? verdictCell('win', 'Covering', `by ${fmtMargin(cover)}`, scoreText)
+            : state === 'not-covering'
+              ? verdictCell('loss', 'Not covering', `by ${fmtMargin(cover)}`, scoreText)
+              : verdictCell('push', 'On the number', undefined, scoreText);
       }
+    } else if (started) {
+      cell = verdictCell('none', 'Live', undefined, 'waiting on score…');
     } else {
       const untilKick = new Date(game.kickoff_et).getTime() - now;
-      scoreBlock = (
-        <div className="tnum" style={{ textAlign: 'right' }}>
-          <div className="disp" style={{ fontSize: '1.25rem', fontWeight: 700 }}>—</div>
-          <small style={{ color: 'var(--ink-soft)', fontSize: '0.68rem' }}>
-            in {fmtCountdown(untilKick)}
-          </small>
-        </div>
-      );
-      statusPill = started ? (
-        <span className="sl-pill soon">In progress…</span>
-      ) : (
-        <span className="sl-pill soon">Locks {kickoffLabel(game.kickoff_et)}</span>
+      cell = verdictCell(
+        'none',
+        'Locks',
+        kickoffLabel(game.kickoff_et),
+        `in ${fmtCountdown(untilKick)}`
       );
     }
 
     return (
-      <div
-        key={index}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '11px 14px',
-          borderBottom: '1px solid var(--line)',
-        }}
-      >
-        <img src={getTeamLogo(pick.team)} alt="" style={{ width: 34, height: 34 }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 650, fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
-            {getMascotName(pick.team)}{' '}
-            <span className="tnum" style={{ color: 'var(--ink)', fontWeight: 700 }}>
-              {pick.spread > 0 ? `+${pick.spread}` : pick.spread}
-            </span>
-          </div>
-          <div
-            style={{
-              color: 'var(--ink-soft)',
-              fontSize: '0.78rem',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {opponent} · {liveGame?.statusDetail || kickoffLabel(game.kickoff_et)}
+      <div key={index} style={rowStyle}>
+        <div style={leftStyle}>
+          <img src={getTeamLogo(pick.team)} alt="" style={{ width: 34, height: 34 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 650, fontSize: '0.92rem', whiteSpace: 'nowrap' }}>
+              {getMascotName(pick.team)}{' '}
+              <span className="tnum" style={{ color: 'var(--ink)', fontWeight: 700 }}>
+                {pick.spread > 0 ? `+${pick.spread}` : pick.spread}
+              </span>
+            </div>
+            <div
+              style={{
+                color: 'var(--ink-soft)',
+                fontSize: '0.78rem',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {opponent} · {liveGame?.statusDetail || kickoffLabel(game.kickoff_et)}
+            </div>
           </div>
         </div>
-        {scoreBlock}
-        {statusPill}
+        {cell}
       </div>
     );
   });
@@ -236,25 +296,45 @@ export default function ThisWeekScreen({
         }}
       >
         <div>
-          <div className="disp tnum" style={{ fontSize: '1.9rem', fontWeight: 700, lineHeight: 1 }}>
-            {myPicks.length}
-            <span style={{ color: 'var(--ink-soft)' }}>/3</span>
-          </div>
-          <div style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
-            picks in for Week {currentWeek}
-          </div>
+          {myWeekRecord.graded > 0 ? (
+            <>
+              <div className="disp tnum" style={{ fontSize: '1.9rem', fontWeight: 700, lineHeight: 1 }}>
+                {myWeekRecord.wins}–{myWeekRecord.losses}
+                {myWeekRecord.pushes ? `–${myWeekRecord.pushes}` : ''}
+              </div>
+              <div style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
+                Week {currentWeek}
+                {myWeekRecord.pending > 0 && (
+                  <>
+                    {' '}· best case{' '}
+                    <b className="tnum" style={{ color: 'var(--ink)' }}>
+                      {myWeekRecord.wins + myWeekRecord.pending}–{myWeekRecord.losses}
+                      {myWeekRecord.pushes ? `–${myWeekRecord.pushes}` : ''}
+                    </b>
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="disp tnum" style={{ fontSize: '1.9rem', fontWeight: 700, lineHeight: 1 }}>
+                {myPicks.length}
+                <span style={{ color: 'var(--ink-soft)' }}>/3</span>
+              </div>
+              <div style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
+                picks in for Week {currentWeek}
+              </div>
+            </>
+          )}
         </div>
         <div style={{ borderLeft: '1px solid var(--line)', paddingLeft: 14, fontSize: '0.85rem' }}>
           {anyLiveNow ? (
             <>
               <span className="sl-pill live">Live</span>
               <div className="tnum" style={{ marginTop: 4, color: 'var(--ink-soft)' }}>
-                You're{' '}
-                <b style={{ color: 'var(--win)' }}>
-                  {myToday.wins}–{myToday.losses}
-                  {myToday.pushes ? `–${myToday.pushes}` : ''}
-                </b>{' '}
-                so far
+                {myWeekRecord.pending > 0
+                  ? `${myWeekRecord.pending} pick${myWeekRecord.pending > 1 ? 's' : ''} still to play`
+                  : 'all picks decided'}
               </div>
             </>
           ) : firstUnlocked ? (
@@ -290,7 +370,7 @@ export default function ThisWeekScreen({
       {selectedUser && myPicks.length > 0 && (
         <>
           <h2 className="sl-sec">Your picks{anyLiveNow ? ' · live' : ''}</h2>
-          <div className="sl-card" style={{ padding: '4px 0' }}>{trackerRows}</div>
+          <div className="sl-card" style={{ padding: 0, overflow: 'hidden' }}>{trackerRows}</div>
         </>
       )}
 
