@@ -690,11 +690,23 @@ function App() {
   };
 
   const savePicks = async (userId: string, week: number, selectedPicks: TeamPick[]) => {
+    // Picks on kicked-off games are already locked in — leave them out of the
+    // save so updating the other picks still works. The server keeps the
+    // existing locked rows (and would reject any payload that touched them).
+    const gamePool = mode === 'playoffs' ? playoffGames : games;
+    const lockedGameIds = new Set(
+      gamePool
+        .filter((game) => new Date(game.kickoff_et).getTime() <= Date.now())
+        .map((game) => game.id)
+    );
+    const unlockedPicks = selectedPicks.filter((pick) => !lockedGameIds.has(pick.gameId));
+    if (unlockedPicks.length === 0) return true; // everything locked — nothing to save
+
     // Signed-in members save through the hardened RPC: the database verifies
     // identity, kickoff locks, and current lines — the client is untrusted.
     if (session && authedPlayer) {
       try {
-        const payload = selectedPicks.map((pick) => {
+        const payload = unlockedPicks.map((pick) => {
           let game_id = pick.gameId;
           let team = pick.team;
           switch (pick.pickType) {
@@ -736,7 +748,7 @@ function App() {
       // the old ones are deleted so a failed insert can never wipe existing picks.
       const { data: existingRows, error: fetchError } = await supabase
         .from('picks')
-        .select('id')
+        .select('id, game_id')
         .eq('user_id', userId)
         .eq('week', week)
         .eq('season', seasonConfig.season);
@@ -754,7 +766,7 @@ function App() {
       //   total/total_h1: "O/U:OVER" or "O/U:UNDER"
       //   props (yes/no): prop display text
       //   props (o/u): "PROP:OVER:propDisplay" or "PROP:UNDER:propDisplay"
-      const pickRecords = selectedPicks.map(pick => {
+      const pickRecords = unlockedPicks.map(pick => {
         let game_id = pick.gameId;
         let team = pick.team;
 
@@ -801,12 +813,16 @@ function App() {
 
       if (error) throw error;
 
-      // Remove the replaced picks now that the new ones are safely stored
-      if (existingRows && existingRows.length > 0) {
+      // Remove the replaced picks now that the new ones are safely stored.
+      // Rows for locked games stay — they weren't re-inserted above.
+      const replacedRows = (existingRows || []).filter(
+        (row) => !lockedGameIds.has(String(row.game_id).replace(/-(ou|h1|h1-ou)$/, ''))
+      );
+      if (replacedRows.length > 0) {
         const { error: deleteError } = await supabase
           .from('picks')
           .delete()
-          .in('id', existingRows.map(row => row.id));
+          .in('id', replacedRows.map(row => row.id));
         if (deleteError) throw deleteError;
       }
 
