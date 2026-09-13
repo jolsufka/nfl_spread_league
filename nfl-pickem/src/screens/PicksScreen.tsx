@@ -125,7 +125,16 @@ export default function PicksScreen({
       const sameIndex = previous.findIndex(
         (pick) => pick.gameId === gameId && pick.team === team
       );
-      if (sameIndex >= 0) return previous.filter((_, index) => index !== sameIndex);
+      if (sameIndex >= 0) {
+        // Same team at a moved line: re-lock at the current number.
+        // Same team at the same number: deselect.
+        if (previous[sameIndex].spread !== spread) {
+          const next = [...previous];
+          next[sameIndex] = { gameId, team, spread };
+          return next;
+        }
+        return previous.filter((_, index) => index !== sameIndex);
+      }
 
       const otherIndex = previous.findIndex(
         (pick) => pick.gameId === gameId && pick.team !== team
@@ -168,6 +177,19 @@ export default function PicksScreen({
     const locked = isGameLocked(game);
     const opening = team === game.away ? game.opening_spread_away : game.opening_spread_home;
     const moved = opening !== undefined && !Number.isNaN(opening) && opening !== spread;
+    const savedPick = currentPicks.find(
+      (pick) => pick.gameId === game.id && pick.team === team
+    );
+    const pendingPick = selectedPicks.find(
+      (pick) => pick.gameId === game.id && pick.team === team
+    );
+    // The line moved in your favor since you saved — clicking the team again
+    // re-locks the pick at the better number.
+    const betterLine =
+      !locked &&
+      !!savedPick &&
+      spread > savedPick.spread &&
+      !(pendingPick && pendingPick.spread === spread);
     return (
       <button
         className="pick-side"
@@ -220,6 +242,18 @@ export default function PicksScreen({
               open {opening! > 0 ? `+${opening}` : opening}
             </small>
           )}
+          {betterLine && (
+            <small
+              style={{
+                display: 'block',
+                fontWeight: 650,
+                fontSize: '0.62rem',
+                color: 'var(--win)',
+              }}
+            >
+              ▲ yours {savedPick!.spread > 0 ? `+${savedPick!.spread}` : savedPick!.spread}
+            </small>
+          )}
         </span>
       </button>
     );
@@ -256,6 +290,15 @@ export default function PicksScreen({
           const pick = selectedPicks[slotIndex];
           const pickGame = pick ? games.find((game) => game.id === pick.gameId) : undefined;
           const pickLocked = !!pickGame && isGameLocked(pickGame);
+          const chipSideSpread = !pickGame
+            ? undefined
+            : pick.team === pickGame.home
+              ? pickGame.spread_home
+              : pick.team === pickGame.away
+                ? pickGame.spread_away
+                : undefined;
+          const chipBetterLine =
+            !pickLocked && chipSideSpread !== undefined && chipSideSpread > pick.spread;
           return (
             <div
               key={slotIndex}
@@ -289,6 +332,9 @@ export default function PicksScreen({
                   <span className="tnum" style={{ whiteSpace: 'nowrap' }}>
                     {pick.spread > 0 ? `+${pick.spread}` : pick.spread}
                   </span>
+                  {chipBetterLine && (
+                    <span style={{ color: 'var(--win)', fontSize: '0.72rem', fontWeight: 700 }}>▲</span>
+                  )}
                 </>
               ) : (
                 `Pick ${slotIndex + 1}`
