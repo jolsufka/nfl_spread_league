@@ -254,17 +254,21 @@ export default function PicksScreen({
       }}>
         {[0, 1, 2].map((slotIndex) => {
           const pick = selectedPicks[slotIndex];
+          const pickGame = pick ? games.find((game) => game.id === pick.gameId) : undefined;
+          const pickLocked = !!pickGame && isGameLocked(pickGame);
           return (
             <div
               key={slotIndex}
               style={{
                 flex: 1,
-                border: `1.5px ${pick ? 'solid var(--accent)' : 'dashed var(--line)'}`,
+                border: `1.5px ${
+                  pick ? (pickLocked ? 'solid var(--line)' : 'solid var(--accent)') : 'dashed var(--line)'
+                }`,
                 borderRadius: 8,
                 padding: '5px 8px',
                 fontSize: '0.78rem',
-                color: pick ? 'var(--ink)' : 'var(--ink-soft)',
-                background: pick ? 'var(--accent-soft)' : 'none',
+                color: pick && !pickLocked ? 'var(--ink)' : 'var(--ink-soft)',
+                background: pick ? (pickLocked ? 'var(--chip)' : 'var(--accent-soft)') : 'none',
                 fontWeight: pick ? 650 : 400,
                 display: 'flex',
                 alignItems: 'center',
@@ -276,7 +280,12 @@ export default function PicksScreen({
             >
               {pick ? (
                 <>
-                  <img src={getTeamLogo(pick.team)} alt="" style={{ width: 20, height: 20 }} />
+                  {pickLocked && <span style={{ fontSize: '0.72rem' }}>🔒</span>}
+                  <img
+                    src={getTeamLogo(pick.team)}
+                    alt=""
+                    style={{ width: 20, height: 20, ...(pickLocked ? { filter: 'grayscale(1)', opacity: 0.7 } : {}) }}
+                  />
                   <span className="tnum" style={{ whiteSpace: 'nowrap' }}>
                     {pick.spread > 0 ? `+${pick.spread}` : pick.spread}
                   </span>
