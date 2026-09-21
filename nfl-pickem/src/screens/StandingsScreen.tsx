@@ -3,6 +3,7 @@ import { CfTable, CfChart, ChartFactory } from '../charts';
 import { Pick, User } from '../types';
 import { computeStandings, cumulativeTrend, rankHistory, regularSeason, gradeOf, PLAYER_COLORS } from '../leagueMath';
 import { getMascotName } from '../teamAssets';
+import WeekRecapCard from './WeekRecapCard';
 
 interface StandingsScreenProps {
   picks: Pick[];
@@ -10,17 +11,10 @@ interface StandingsScreenProps {
   teamAbbreviations: { [key: string]: string };
   selectedUser: string;
   season: number;
-  archive?: boolean; // final-season recap: no movement arrows or recent form
+  archive?: boolean; // final-season recap: no movement arrows or last-place badge
   currentWeek?: number;
   games?: Array<{ id: string; kickoff_et: string }>; // current week, for lock gating
 }
-
-const formCells = (last5: Array<'W' | 'L' | 'P'>) =>
-  last5.length
-    ? last5
-        .map((grade) => `<span class="rescell ${grade.toLowerCase()}">${grade}</span>`)
-        .join(' ')
-    : '<span class="rescell o">—</span>';
 
 export default function StandingsScreen({
   picks,
@@ -86,8 +80,6 @@ export default function StandingsScreen({
             : '<span style="color:var(--ink-soft)">—</span>',
         record: row.record,
         winPct: Math.round(row.winPct * 10) / 10,
-        last5: formCells(row.last5),
-        streak: row.streak,
       })),
     [standings, selectedUser, archive]
   );
@@ -240,6 +232,9 @@ export default function StandingsScreen({
 
   return (
     <div>
+      {!archive && (
+        <WeekRecapCard picks={picks} users={users} teamAbbreviations={teamAbbreviations} />
+      )}
       <div
         className={archive ? 'sl-plain' : ''}
         style={archive ? { width: 'fit-content', maxWidth: '100%', margin: '0 auto' } : {}}
@@ -254,12 +249,6 @@ export default function StandingsScreen({
             { key: 'player', header: 'Player', className: 'primary-cell', render: (value: string) => value },
             { key: 'record', header: 'Record', align: 'right', sortable: true, sortType: 'record' },
             { key: 'winPct', header: 'Correct %', align: 'right', sortable: true, sortType: 'numeric' },
-            ...(archive
-              ? []
-              : [
-                  { key: 'last5', header: 'Last 5', align: 'right', render: (value: string) => value },
-                  { key: 'streak', header: 'Streak', align: 'right' },
-                ]),
           ]}
           rows={standingsRows}
           options={{
@@ -271,13 +260,20 @@ export default function StandingsScreen({
         </div>
       </div>
 
-      <h2 className="sl-sec sl-breakout">Weekly performance</h2>
-      <div className="sl-card sl-breakout sl-tight" style={{ padding: '4px 12px' }}>
-        <CfTable
-          columns={heatColumns}
-          rows={heatRows}
-          options={{ stickyHeader: true, stickyFirstColumn: true }}
-        />
+      {/* Content-sized so the grid grows with the season: flush with the
+          column's left edge while it fits, overflowing it evenly once wider
+          (up to the breakout width), scrolling beyond that. */}
+      <div className="sl-grow-host">
+        <div className="sl-grow">
+          <h2 className="sl-sec">Weekly performance</h2>
+          <div className="sl-card sl-tight" style={{ padding: '4px 12px' }}>
+            <CfTable
+              columns={heatColumns}
+              rows={heatRows}
+              options={{ stickyHeader: true, stickyFirstColumn: true }}
+            />
+          </div>
+        </div>
       </div>
 
       <h2 className={`sl-sec${archive ? ' sl-breakout' : ''}`}>Cumulative correct %</h2>

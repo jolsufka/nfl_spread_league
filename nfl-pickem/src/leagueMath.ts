@@ -29,16 +29,6 @@ export function recordString(record: { wins: number; losses: number; pushes: num
   return record.pushes > 0 ? `${base}–${record.pushes}` : base;
 }
 
-export function streakOf(teamPicks: TeamPick[]): string {
-  const graded = teamPicks.map(gradeOf).filter((grade) => grade === 'W' || grade === 'L');
-  if (!graded.length) return '—';
-  const last = graded[graded.length - 1];
-  let run = 0;
-  for (let i = graded.length - 1; i >= 0 && graded[i] === last; i--) run++;
-  if (run < 2) return `${last}1`;
-  return `${last === 'W' ? '🔥 ' : run >= 3 ? '🧊 ' : ''}${last}${run}`;
-}
-
 export interface StandingRow {
   rank: number;
   movement: number; // + up, - down vs one week earlier
@@ -49,8 +39,6 @@ export interface StandingRow {
   pushes: number;
   record: string;
   winPct: number;
-  last5: Array<'W' | 'L' | 'P'>;
-  streak: string;
   isLeader: boolean;
   isLast: boolean;
 }
@@ -81,24 +69,19 @@ export function computeStandings(picks: Pick[], users: User[]): StandingRow[] {
 
   const anyGraded = now.some((entry) => entry.record.graded > 0);
 
-  return now.map((entry, index) => {
-    const graded = entry.teamPicks.filter((pick) => gradeOf(pick) !== null);
-    return {
-      rank: index + 1,
-      movement: (rankBefore.get(entry.user.id) ?? index + 1) - (index + 1),
-      userId: entry.user.id,
-      name: entry.user.name,
-      wins: entry.record.wins,
-      losses: entry.record.losses,
-      pushes: entry.record.pushes,
-      record: recordString(entry.record),
-      winPct: entry.record.pct,
-      last5: graded.slice(-5).map((pick) => gradeOf(pick) as 'W' | 'L' | 'P'),
-      streak: streakOf(entry.teamPicks),
-      isLeader: anyGraded && index === 0,
-      isLast: anyGraded && index === now.length - 1,
-    };
-  });
+  return now.map((entry, index) => ({
+    rank: index + 1,
+    movement: (rankBefore.get(entry.user.id) ?? index + 1) - (index + 1),
+    userId: entry.user.id,
+    name: entry.user.name,
+    wins: entry.record.wins,
+    losses: entry.record.losses,
+    pushes: entry.record.pushes,
+    record: recordString(entry.record),
+    winPct: entry.record.pct,
+    isLeader: anyGraded && index === 0,
+    isLast: anyGraded && index === now.length - 1,
+  }));
 }
 
 // Stable per-player colors (Paul Tol "bright" — 7 distinct, CVD-safe).

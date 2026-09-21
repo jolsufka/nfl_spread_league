@@ -88,7 +88,7 @@ body {
   font-weight: 700;
 }
 
-/* result cells (matrix, last-5 form) */
+/* result cells (season matrix, weekly heatmap) */
 .rescell {
   display: inline-flex;
   align-items: center;
@@ -243,6 +243,21 @@ body {
   transform: translateX(-50%);
 }
 
+/* content-sized section (weekly heatmap): only as wide as its columns, so
+   it grows with the season. While it fits the column the auto margin takes
+   the free space and it sits flush left; once wider, the centered flex host
+   lets it overflow the column evenly, capped at the breakout width — past
+   that the table's own scroll wrapper takes over. */
+.sl-grow-host {
+  display: flex;
+  justify-content: center;
+}
+.sl-grow {
+  flex: none;
+  max-width: min(1080px, calc(100vw - 28px));
+  margin-right: auto;
+}
+
 /* pick buttons: full mascot on wide screens, abbreviation on phones
    (truncated mascots like "P.." are unreadable) */
 .team-abbr { display: none; font-weight: 700; letter-spacing: 0.02em; }
@@ -279,13 +294,12 @@ body {
 }
 
 /* For dense numeric grids (weekly heatmap): defeat d3-table's inline
-   min-width floor so the table shares the card's width (the floor assumes
-   generic content; these cells are 1-2 characters). Wide screens only —
-   on phones the floor stays so the grid scrolls instead of crushing. */
+   min-width floor so the table is only as wide as its content (the floor
+   assumes generic content; these cells are 1-2 characters). Wide screens
+   only — on phones the floor stays so the grid scrolls instead of crushing. */
 @media (min-width: 700px) {
   .sl-tight table {
     min-width: 0 !important;
-    width: 100%;
   }
   .sl-tight table td,
   .sl-tight table th {
