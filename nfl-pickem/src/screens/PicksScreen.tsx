@@ -18,6 +18,8 @@ interface PicksScreenProps {
 
 const isGameLocked = (game: Game) => new Date(game.kickoff_et).getTime() <= Date.now();
 
+const fmtSpread = (spread: number) => (spread > 0 ? `+${spread}` : `${spread}`);
+
 const kickoffShort = (kickoffEt: string) =>
   new Date(kickoffEt).toLocaleDateString('en-US', {
     weekday: 'short',
@@ -110,43 +112,63 @@ export default function PicksScreen({
   const [selectedPicks, setSelectedPicks] = useState<TeamPick[]>(currentPicks);
   const [justSaved, setJustSaved] = useState(false);
   const [celebratePicks, setCelebratePicks] = useState<TeamPick[] | null>(null);
+  const [lineNotice, setLineNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedPicks(currentPicks);
     setJustSaved(false);
+    setLineNotice(null);
   }, [currentPicks, selectedUser]);
 
   const handleTeamToggle = (gameId: string, team: string, spread: number) => {
     const game = games.find((candidate) => candidate.id === gameId);
     if (!game || isGameLocked(game)) return;
     setJustSaved(false);
+    setLineNotice(null);
 
-    setSelectedPicks((previous) => {
-      const sameIndex = previous.findIndex(
-        (pick) => pick.gameId === gameId && pick.team === team
-      );
-      if (sameIndex >= 0) {
-        // Same team at a moved line: re-lock at the current number.
-        // Same team at the same number: deselect.
-        if (previous[sameIndex].spread !== spread) {
-          const next = [...previous];
-          next[sameIndex] = { gameId, team, spread };
-          return next;
-        }
-        return previous.filter((_, index) => index !== sameIndex);
-      }
+    // A saved pick's number can only ever improve. If the line moved AGAINST
+    // the member since they saved, re-picking the same team keeps the saved
+    // (better) number — a tap must never trade +3 down to +2.5.
+    const savedPick = currentPicks.find(
+      (pick) => pick.gameId === gameId && pick.team === team
+    );
+    const bestSpread =
+      savedPick && savedPick.spread > spread ? savedPick.spread : spread;
 
-      const otherIndex = previous.findIndex(
-        (pick) => pick.gameId === gameId && pick.team !== team
-      );
-      if (otherIndex >= 0) {
-        const next = [...previous];
-        next[otherIndex] = { gameId, team, spread };
-        return next;
+    const sameIndex = selectedPicks.findIndex(
+      (pick) => pick.gameId === gameId && pick.team === team
+    );
+    if (sameIndex >= 0) {
+      // Same team at a better number: re-lock at that number (line shopping).
+      // Otherwise the tap is a plain deselect — never a downgrade.
+      if (bestSpread > selectedPicks[sameIndex].spread) {
+        const next = [...selectedPicks];
+        next[sameIndex] = { gameId, team, spread: bestSpread };
+        setSelectedPicks(next);
+      } else {
+        setSelectedPicks(selectedPicks.filter((_, index) => index !== sameIndex));
       }
-      if (previous.length < 3) return [...previous, { gameId, team, spread }];
-      return previous;
-    });
+      return;
+    }
+
+    if (bestSpread !== spread) {
+      setLineNotice(
+        `${getMascotName(team)} moved to ${fmtSpread(spread)} — that's a worse number, so you keep your saved ${fmtSpread(bestSpread)}.`
+      );
+    }
+
+    const otherIndex = selectedPicks.findIndex(
+      (pick) => pick.gameId === gameId && pick.team !== team
+    );
+    if (otherIndex >= 0) {
+      const next = [...selectedPicks];
+      next[otherIndex] = { gameId, team, spread: bestSpread };
+      setSelectedPicks(next);
+      return;
+    }
+    if (selectedPicks.length < 3) {
+      setSelectedPicks([...selectedPicks, { gameId, team, spread: bestSpread }]);
+    }
   };
 
   const picksModified = useMemo(() => {
@@ -190,6 +212,9 @@ export default function PicksScreen({
       !!savedPick &&
       spread > savedPick.spread &&
       !(pendingPick && pendingPick.spread === spread);
+    // The line moved AGAINST you since you saved — your better number stays
+    // locked in, and tapping can never trade it down.
+    const keptLine = !locked && !!savedPick && savedPick.spread > spread;
     return (
       <button
         className="pick-side"
@@ -252,6 +277,18 @@ export default function PicksScreen({
               }}
             >
               ▲ yours {savedPick!.spread > 0 ? `+${savedPick!.spread}` : savedPick!.spread}
+            </small>
+          )}
+          {keptLine && (
+            <small
+              style={{
+                display: 'block',
+                fontWeight: 650,
+                fontSize: '0.62rem',
+                color: 'var(--win)',
+              }}
+            >
+              ✓ yours {fmtSpread(savedPick!.spread)}
             </small>
           )}
         </span>
@@ -345,6 +382,7 @@ export default function PicksScreen({
         <button
           onClick={async () => {
             if (canSave) {
+              setLineNotice(null);
               const snapshot = [...selectedPicks];
               const ok = await onSavePicks(snapshot);
               if (ok) {
@@ -374,6 +412,29 @@ export default function PicksScreen({
             : 'Save picks'}
         </button>
       </div>
+
+      {lineNotice && (
+        <div
+          className="sl-card"
+          role="status"
+          onClick={() => setLineNotice(null)}
+          style={{
+            position: 'fixed',
+            left: 12,
+            right: 12,
+            bottom: 84,
+            zIndex: 95,
+            border: '1.5px solid var(--push)',
+            padding: '10px 12px',
+            fontSize: '0.82rem',
+            color: 'var(--ink)',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+            cursor: 'pointer',
+          }}
+        >
+          ⚠️ {lineNotice}
+        </div>
+      )}
 
       {celebratePicks && (
         <div
