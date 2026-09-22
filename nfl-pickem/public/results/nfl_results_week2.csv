@@ -1,0 +1,17 @@
+game_id,kickoff_et,away,home,away_score,home_score,actual_margin,home_spread,away_spread,home_ats_margin,home_ats_result,away_ats_result,total,actual_total,over_under
+1,2026-09-17 20:17:36-04:00,Detroit Lions,Buffalo Bills,31,41,10,-16.5,16.5,-6.5,L,W,63.5,72,OVER
+2,2026-09-20 13:00:00-04:00,Carolina Panthers,Atlanta Falcons,34,3,-31,2.5,-2.5,-28.5,L,W,43.5,37,UNDER
+3,2026-09-20 13:00:00-04:00,New Orleans Saints,Baltimore Ravens,24,17,-7,-8.5,8.5,-15.5,L,W,46.5,41,UNDER
+4,2026-09-20 13:00:00-04:00,Minnesota Vikings,Chicago Bears,9,3,-6,-4.5,4.5,-10.5,L,W,47.5,12,UNDER
+5,2026-09-20 13:00:00-04:00,Cincinnati Bengals,Houston Texans,20,6,-14,-2.5,2.5,-16.5,L,W,45.5,26,UNDER
+6,2026-09-20 13:00:00-04:00,Cleveland Browns,Tampa Bay Buccaneers,23,19,-4,-8.5,8.5,-12.5,L,W,41.5,42,OVER
+7,2026-09-20 13:00:00-04:00,Green Bay Packers,New York Jets,20,17,-3,3.5,-3.5,0.5,W,L,44.5,37,UNDER
+8,2026-09-20 13:00:00-04:00,Pittsburgh Steelers,New England Patriots,3,20,17,-5.5,5.5,11.5,W,L,41.5,23,UNDER
+9,2026-09-20 13:00:00-04:00,Philadelphia Eagles,Tennessee Titans,24,20,-4,7.0,-7.0,3.0,W,L,39.5,44,OVER
+10,2026-09-20 16:05:00-04:00,Jacksonville Jaguars,Denver Broncos,13,20,7,-2.5,2.5,4.5,W,L,45.5,33,UNDER
+11,2026-09-20 16:05:00-04:00,Las Vegas Raiders,Los Angeles Chargers,26,14,-12,-6.5,6.5,-18.5,L,W,43.5,40,UNDER
+12,2026-09-20 16:25:00-04:00,Seattle Seahawks,Arizona Cardinals,31,7,-24,3.5,-3.5,-20.5,L,W,40.5,38,UNDER
+13,2026-09-20 16:25:00-04:00,Washington Commanders,Dallas Cowboys,20,37,17,-3.5,3.5,13.5,W,L,50.5,57,OVER
+14,2026-09-20 16:25:00-04:00,Miami Dolphins,San Francisco 49ers,13,35,22,-13.5,13.5,8.5,W,L,44.5,48,OVER
+15,2026-09-20 20:20:00-04:00,Indianapolis Colts,Kansas City Chiefs,30,33,3,-6.0,6.0,-3.0,L,W,46.5,63,OVER
+16,2026-09-21 20:16:43-04:00,New York Giants,Los Angeles Rams,6,28,22,-20.5,20.5,1.5,W,L,38.5,34,UNDER
