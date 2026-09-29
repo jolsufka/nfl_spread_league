@@ -1,0 +1,17 @@
+game_id,kickoff_et,away,home,away_score,home_score,actual_margin,home_spread,away_spread,home_ats_margin,home_ats_result,away_ats_result,total,actual_total,over_under
+1,2026-09-24 20:15:29-04:00,Atlanta Falcons,Green Bay Packers,35,14,-21,12.5,-12.5,-8.5,L,W,45.5,49,OVER
+2,2026-09-27 13:00:00-04:00,Los Angeles Chargers,Buffalo Bills,16,24,8,-7.0,7.0,1.0,W,L,49.5,40,UNDER
+3,2026-09-27 13:00:00-04:00,Carolina Panthers,Cleveland Browns,18,21,3,2.5,-2.5,5.5,W,L,42.5,39,UNDER
+4,2026-09-27 13:00:00-04:00,Cincinnati Bengals,Pittsburgh Steelers,27,30,3,3.5,-3.5,6.5,W,L,42.5,57,OVER
+5,2026-09-27 13:00:00-04:00,New York Jets,Detroit Lions,24,31,7,-6.5,6.5,0.5,W,L,48.5,55,OVER
+6,2026-09-27 13:00:00-04:00,Houston Texans,Indianapolis Colts,17,19,2,1.5,-1.5,3.5,W,L,42.5,36,UNDER
+7,2026-09-27 13:00:00-04:00,New England Patriots,Jacksonville Jaguars,6,35,29,-3.0,3.0,26.0,W,L,46.5,41,UNDER
+8,2026-09-27 13:00:00-04:00,Kansas City Chiefs,Miami Dolphins,24,10,-14,10.0,-10.0,-4.0,L,W,45.5,34,UNDER
+9,2026-09-27 13:00:00-04:00,Tennessee Titans,New York Giants,7,12,5,-2.5,2.5,2.5,W,L,37.5,19,UNDER
+10,2026-09-27 13:00:00-04:00,Seattle Seahawks,Washington Commanders,31,33,2,7.5,-7.5,9.5,W,L,40.5,64,OVER
+11,2026-09-27 16:05:00-04:00,Arizona Cardinals,San Francisco 49ers,30,36,6,-8.5,8.5,-2.5,L,W,47.5,66,OVER
+12,2026-09-27 16:05:00-04:00,Minnesota Vikings,Tampa Bay Buccaneers,23,16,-7,1.5,-1.5,-5.5,L,W,42.5,39,UNDER
+13,2026-09-27 16:25:00-04:00,Baltimore Ravens,Dallas Cowboys,34,31,-3,3.0,-3.0,0.0,P,P,53.5,65,OVER
+14,2026-09-27 16:25:00-04:00,Las Vegas Raiders,New Orleans Saints,35,27,-8,-3.0,3.0,-11.0,L,W,43.5,62,OVER
+15,2026-09-27 20:20:00-04:00,Los Angeles Rams,Denver Broncos,26,30,4,2.5,-2.5,6.5,W,L,44.5,56,OVER
+16,2026-09-28 20:16:16-04:00,Philadelphia Eagles,Chicago Bears,7,27,20,-20.5,20.5,-0.5,L,W,34.5,34,UNDER
