@@ -1,0 +1,16 @@
+game_id,kickoff_et,away,home,away_score,home_score,actual_margin,home_spread,away_spread,home_ats_margin,home_ats_result,away_ats_result,total,actual_total,over_under
+1,2026-10-08 20:15:00-04:00,Tampa Bay Buccaneers,Dallas Cowboys,24,16,-8,-8.5,8.5,-16.5,L,W,48.5,40,UNDER
+2,2026-10-11 09:30:00-04:00,Philadelphia Eagles,Jacksonville Jaguars,17,19,2,-7.5,7.5,-5.5,L,W,41.5,36,UNDER
+3,2026-10-11 13:00:00-04:00,Chicago Bears,Green Bay Packers,7,31,24,1.5,-1.5,25.5,W,L,46.5,38,UNDER
+4,2026-10-11 13:00:00-04:00,Cincinnati Bengals,Miami Dolphins,31,24,-7,7.0,-7.0,0.0,P,P,43.5,55,OVER
+5,2026-10-11 13:00:00-04:00,Cleveland Browns,New York Jets,12,17,5,-2.5,2.5,2.5,W,L,39.5,29,UNDER
+6,2026-10-11 13:00:00-04:00,Houston Texans,Tennessee Titans,26,3,-23,7.0,-7.0,-16.0,L,W,38.5,29,UNDER
+7,2026-10-11 13:00:00-04:00,Indianapolis Colts,Pittsburgh Steelers,22,34,12,-3.0,3.0,9.0,W,L,43.5,56,OVER
+8,2026-10-11 13:00:00-04:00,Las Vegas Raiders,New England Patriots,17,45,28,-3.5,3.5,24.5,W,L,45.5,62,OVER
+9,2026-10-11 13:00:00-04:00,Minnesota Vikings,New Orleans Saints,23,13,-10,2.5,-2.5,-7.5,L,W,41.5,36,UNDER
+10,2026-10-11 13:00:00-04:00,New York Giants,Washington Commanders,27,27,0,-3.5,3.5,-3.5,L,W,41.5,54,OVER
+11,2026-10-11 16:05:00-04:00,Denver Broncos,Los Angeles Chargers,23,17,-6,3.5,-3.5,-2.5,L,W,41.5,40,UNDER
+12,2026-10-11 16:25:00-04:00,Detroit Lions,Arizona Cardinals,45,21,-24,5.5,-5.5,-18.5,L,W,54.5,66,OVER
+13,2026-10-11 16:25:00-04:00,San Francisco 49ers,Seattle Seahawks,32,29,-3,-3.0,3.0,-6.0,L,W,45.5,61,OVER
+14,2026-10-11 20:20:00-04:00,Baltimore Ravens,Atlanta Falcons,30,23,-7,-3.0,3.0,-10.0,L,W,43.5,53,OVER
+15,2026-10-12 20:15:00-04:00,Buffalo Bills,Los Angeles Rams,37,34,-3,-3.5,3.5,-6.5,L,W,54.5,71,OVER
