@@ -742,8 +742,10 @@ function App() {
     }
 
     try {
-      // Note the ids of the picks being replaced. New picks are inserted BEFORE
-      // the old ones are deleted so a failed insert can never wipe existing picks.
+      // Note the picks being replaced. New picks are upserted BEFORE stale ones
+      // are deleted so a failed write can never wipe existing picks. (Upsert, not
+      // insert: a kept pick would collide with its own row on the
+      // (user_id, season, week, game_id) unique constraint.)
       const { data: existingRows, error: fetchError } = await supabase
         .from('picks')
         .select('id, game_id')
@@ -807,14 +809,17 @@ function App() {
 
       const { error } = await supabase
         .from('picks')
-        .insert(pickRecords);
+        .upsert(pickRecords, { onConflict: 'user_id,season,week,game_id' });
 
       if (error) throw error;
 
-      // Remove the replaced picks now that the new ones are safely stored.
-      // Rows for locked games stay — they weren't re-inserted above.
+      // Remove dropped picks now that the new ones are safely stored. Rows for
+      // locked games stay, and kept picks were updated in place above.
+      const keptGameIds = new Set(pickRecords.map((record) => record.game_id));
       const replacedRows = (existingRows || []).filter(
-        (row) => !lockedGameIds.has(String(row.game_id).replace(/-(ou|h1|h1-ou)$/, ''))
+        (row) =>
+          !keptGameIds.has(row.game_id) &&
+          !lockedGameIds.has(String(row.game_id).replace(/-(ou|h1|h1-ou)$/, ''))
       );
       if (replacedRows.length > 0) {
         const { error: deleteError } = await supabase
