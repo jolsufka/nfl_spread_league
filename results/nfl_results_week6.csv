@@ -1,0 +1,15 @@
+game_id,kickoff_et,away,home,away_score,home_score,actual_margin,home_spread,away_spread,home_ats_margin,home_ats_result,away_ats_result,total,actual_total,over_under
+1,2026-10-15 20:15:50-04:00,Seattle Seahawks,Denver Broncos,14,17,3,-7.5,7.5,-4.5,L,W,33.5,31,UNDER
+2,2026-10-18 09:30:00-04:00,Houston Texans,Jacksonville Jaguars,34,31,-3,-2.5,2.5,-5.5,L,W,42.5,65,OVER
+3,2026-10-18 13:00:00-04:00,Chicago Bears,Atlanta Falcons,31,23,-8,1.5,-1.5,-6.5,L,W,52.5,54,OVER
+4,2026-10-18 13:00:00-04:00,Baltimore Ravens,Cleveland Browns,10,13,3,3.0,-3.0,6.0,W,L,39.5,23,UNDER
+5,2026-10-18 13:00:00-04:00,Carolina Panthers,Philadelphia Eagles,25,14,-11,3.0,-3.0,-8.0,L,W,39.5,39,UNDER
+6,2026-10-18 13:00:00-04:00,Tennessee Titans,Indianapolis Colts,26,20,-6,-7.0,7.0,-13.0,L,W,44.5,46,OVER
+7,2026-10-18 13:00:00-04:00,New York Jets,New England Patriots,19,26,7,-7.5,7.5,-0.5,L,W,43.5,45,OVER
+8,2026-10-18 13:00:00-04:00,New Orleans Saints,New York Giants,34,27,-7,1.5,-1.5,-5.5,L,W,46.5,61,OVER
+9,2026-10-18 13:00:00-04:00,Pittsburgh Steelers,Tampa Bay Buccaneers,26,19,-7,2.5,-2.5,-4.5,L,W,38.5,45,OVER
+10,2026-10-18 16:05:00-04:00,Arizona Cardinals,Los Angeles Rams,18,16,-2,-12.5,12.5,-14.5,L,W,51.5,34,UNDER
+11,2026-10-18 16:25:00-04:00,Buffalo Bills,Las Vegas Raiders,33,30,-3,5.5,-5.5,2.5,W,L,53.5,63,OVER
+12,2026-10-18 16:25:00-04:00,Los Angeles Chargers,Kansas City Chiefs,6,22,16,-7.5,7.5,8.5,W,L,41.5,28,UNDER
+13,2026-10-18 20:20:00-04:00,Dallas Cowboys,Green Bay Packers,13,23,10,-1.5,1.5,8.5,W,L,53.5,36,UNDER
+14,2026-10-19 20:16:19-04:00,Washington Commanders,San Francisco 49ers,17,23,6,-12.5,12.5,-6.5,L,W,45.5,40,UNDER
