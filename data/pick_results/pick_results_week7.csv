@@ -1,0 +1,22 @@
+user,game_id,team,spread,result,game_date
+connor,1,Chicago Bears,-3.0,W,2026-10-22
+connor,13,Seattle Seahawks,-2.5,W,2026-10-25
+connor,2,New Orleans Saints,3.5,L,2026-10-25
+john,3,San Francisco 49ers,-2.5,L,2026-10-25
+john,8,Minnesota Vikings,-6.5,L,2026-10-25
+john,6,Cleveland Browns,-1.5,W,2026-10-25
+max,8,Minnesota Vikings,-6.5,L,2026-10-25
+max,4,Cincinnati Bengals,1.5,W,2026-10-25
+max,5,Tampa Bay Buccaneers,3.0,W,2026-10-25
+shane,11,Green Bay Packers,3.0,P,2026-10-25
+shane,12,Las Vegas Raiders,3.0,L,2026-10-25
+jacob,4,Cincinnati Bengals,-2.5,W,2026-10-25
+jacob,7,Houston Texans,-10.0,L,2026-10-25
+jacob,9,New York Jets,-4.5,L,2026-10-25
+nathan,11,Detroit Lions,-3.0,P,2026-10-25
+nathan,13,Kansas City Chiefs,3.0,L,2026-10-25
+nathan,10,Arizona Cardinals,4.5,L,2026-10-25
+shane,10,Arizona Cardinals,4.5,L,2026-10-25
+cam,12,Los Angeles Rams,-3.0,W,2026-10-25
+cam,13,Kansas City Chiefs,3.0,L,2026-10-25
+cam,14,Philadelphia Eagles,4.5,L,2026-10-26
