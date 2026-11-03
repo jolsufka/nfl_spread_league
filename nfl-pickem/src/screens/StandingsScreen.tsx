@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CfTable, CfChart, ChartFactory } from '../charts';
 import { Pick, User } from '../types';
-import { computeStandings, cumulativeTrend, rankHistory, regularSeason, gradeOf, PLAYER_COLORS } from '../leagueMath';
+import { computeStandings, cumulativeTrend, rankHistory, regularSeason, gradeOf, recordString, PLAYER_COLORS } from '../leagueMath';
+import { calcRecord } from '../seasonConfig';
+import StandingsBoard, { BoardRow } from './StandingsBoard';
 import { getMascotName } from '../teamAssets';
 import WeekRecapCard from './WeekRecapCard';
 
@@ -61,28 +63,17 @@ export default function StandingsScreen({
   }, [picks, users, narrow]);
   const hasGraded = standings.some((row) => row.wins + row.losses + row.pushes > 0);
 
-  const standingsRows = useMemo(
-    () =>
-      standings.map((row) => ({
-        rank: row.rank,
-        player:
-          `${row.name}` +
-          (row.isLeader ? ' 👑' : '') +
-          (row.isLast && !archive ? ' <span class="rescell p">🤡 last</span>' : '') +
-          (row.userId === selectedUser
-            ? ' <span style="font-size:0.68rem;color:var(--accent);font-weight:700">YOU</span>'
-            : ''),
-        move:
-          row.movement > 0
-            ? `<span style="color:var(--win);font-weight:700">▲${row.movement}</span>`
-            : row.movement < 0
-            ? `<span style="color:var(--loss);font-weight:700">▼${-row.movement}</span>`
-            : '<span style="color:var(--ink-soft)">—</span>',
-        record: row.record,
-        winPct: Math.round(row.winPct * 10) / 10,
-      })),
-    [standings, selectedUser, archive]
-  );
+  // Latest graded week's record per player, for the board
+  const boardRows: BoardRow[] = useMemo(() => {
+    const graded = regularSeason(picks).filter((userWeek) =>
+      userWeek.picks.some((pick) => gradeOf(pick) !== null)
+    );
+    const latest = graded.reduce((max, userWeek) => Math.max(max, userWeek.week), 0);
+    return standings.map((row) => {
+      const week = graded.find((userWeek) => userWeek.userId === row.userId && userWeek.week === latest);
+      return { ...row, lastWeek: week ? recordString(calcRecord(week.picks)) : null };
+    });
+  }, [standings, picks]);
 
   const abbr = (team: string) =>
     teamAbbreviations[team] || getMascotName(team).substring(0, 3).toUpperCase();
@@ -235,29 +226,9 @@ export default function StandingsScreen({
       {!archive && (
         <WeekRecapCard picks={picks} users={users} teamAbbreviations={teamAbbreviations} />
       )}
-      <div
-        className={archive ? 'sl-plain' : ''}
-        style={archive ? { width: 'fit-content', maxWidth: '100%', margin: '0 auto' } : {}}
-      >
-        <h2 className="sl-sec">Standings</h2>
-        <div className={archive ? '' : 'sl-card'} style={archive ? {} : { padding: '4px 12px' }}>
-        <CfTable
-          sortable
-          columns={[
-            { key: 'rank', header: '#', className: 'secondary-cell', sortable: true, sortType: 'numeric' },
-            ...(archive ? [] : [{ key: 'move', header: '', render: (value: string) => value }]),
-            { key: 'player', header: 'Player', className: 'primary-cell', render: (value: string) => value },
-            { key: 'record', header: 'Record', align: 'right', sortable: true, sortType: 'record' },
-            { key: 'winPct', header: 'Correct %', align: 'right', sortable: true, sortType: 'numeric' },
-          ]}
-          rows={standingsRows}
-          options={{
-            stickyHeader: !archive,
-            layout: archive ? 'fixed' : 'fill',
-            barColumns: [{ key: 'winPct' }],
-          }}
-        />
-        </div>
+      <h2 className="sl-sec">Standings</h2>
+      <div className="sl-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <StandingsBoard rows={boardRows} selectedUser={selectedUser} archive={archive} />
       </div>
 
       {/* Content-sized so the grid grows with the season: flush with the
