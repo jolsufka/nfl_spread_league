@@ -179,7 +179,17 @@ export default function PicksScreen({
     });
   }, [selectedPicks, currentPicks]);
 
-  const canSave = Boolean(selectedUser) && selectedPicks.length === 3 && picksModified;
+  // Normally 3 picks, but a late member may have fewer than 3 games left to
+  // choose from — then a full card is every pick still possible.
+  const lockedPickCount = selectedPicks.filter((pick) => {
+    const game = games.find((candidate) => candidate.id === pick.gameId);
+    return !!game && isGameLocked(game);
+  }).length;
+  const openGameCount = games.filter((game) => !isGameLocked(game)).length;
+  const picksNeeded = Math.min(3, lockedPickCount + openGameCount);
+  const canSave =
+    Boolean(selectedUser) && selectedPicks.length > 0 &&
+    selectedPicks.length >= picksNeeded && picksModified;
 
   const grouped = useMemo(() => {
     const bySlot = new Map<string, Game[]>();
