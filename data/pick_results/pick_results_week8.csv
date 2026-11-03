@@ -1,0 +1,21 @@
+user,game_id,team,spread,result,game_date
+nathan,12,New England Patriots,-7.0,L,2026-11-01
+nathan,10,Los Angeles Chargers,6.5,L,2026-11-01
+jacob,12,New England Patriots,-7.0,L,2026-11-01
+jacob,10,Los Angeles Rams,-6.5,W,2026-11-01
+jacob,13,Philadelphia Eagles,6.0,L,2026-11-01
+connor,13,Washington Commanders,-6.0,W,2026-11-01
+connor,14,Seattle Seahawks,-3.0,L,2026-11-02
+john,8,Jacksonville Jaguars,-10.0,W,2026-11-01
+john,1,Carolina Panthers,3.5,L,2026-10-29
+john,7,Detroit Lions,-3.0,W,2026-11-01
+cam,13,Washington Commanders,-6.0,W,2026-11-01
+cam,3,Tampa Bay Buccaneers,-2.5,W,2026-11-01
+cam,10,Los Angeles Rams,-6.5,W,2026-11-01
+max,12,New England Patriots,-7.0,L,2026-11-01
+max,10,Los Angeles Rams,-6.5,W,2026-11-01
+max,8,Jacksonville Jaguars,-10.0,W,2026-11-01
+shane,3,Atlanta Falcons,2.5,L,2026-11-01
+shane,7,Minnesota Vikings,3.0,L,2026-11-01
+shane,14,Seattle Seahawks,-3.0,L,2026-11-02
+nathan,11,Denver Broncos,1.5,W,2026-11-01
