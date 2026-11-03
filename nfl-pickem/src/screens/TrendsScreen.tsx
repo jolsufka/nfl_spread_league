@@ -243,8 +243,11 @@ export default function TrendsScreen({ picks, users, currentWeek }: TrendsScreen
 
       <h2 className="sl-sec">Favorites vs. underdogs</h2>
       <div className="sl-card trend-card">
-        <h3 className="trend-h3">Cover rate by size of the spread</h3>
-        <p className="trend-note">Each bar is the cover rate for picks made at that spread size.</p>
+        <h3 className="trend-h3">How our picks covered, by size of the spread</h3>
+        <p className="trend-note">
+          Every league pick combined, not every NFL game: how often the favorites and underdogs we picked
+          covered at each spread size. The dashed line is 50%. Hover a bar for the record.
+        </p>
         <CfChart
           create={(el, config) => ChartFactory.Bar.createGrouped(el, config)}
           config={{
