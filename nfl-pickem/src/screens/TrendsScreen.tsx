@@ -222,15 +222,23 @@ export default function TrendsScreen({ picks, users, currentWeek }: TrendsScreen
   const marginCell = (value: number) =>
     `<span class="trend-${marginClass(value) || 'flat'}">${signed(value)}</span>`;
   const resultCell = (value: string) => `<span class="rescell ${value.toLowerCase()}">${value}</span>`;
-  // Cover rate on one side; '—' when the player never picked that side
-  const sidePct = (value: number | null) => (value === null ? '—' : `${value.toFixed(0)}%`);
-  const sideRows = favShareRows.map((row) => ({
-    player: row.category,
-    favRecord: row.fav.record,
-    favPct: row.fav.graded ? row.fav.pct : null,
-    dogRecord: row.dog.record,
-    dogPct: row.dog.graded ? row.dog.pct : null,
-  }));
+  // Win % on one side, green/red around .500; '—' when the player never picked that side
+  const sidePct = (value: number | null) =>
+    value === null
+      ? '—'
+      : `<span class="trend-${value > 50 ? 'pos' : value < 50 ? 'neg' : 'flat'}">${value.toFixed(0)}%</span>`;
+  const sideRows = favShareRows.map((row) => {
+    const total = row.fav.graded + row.dog.graded;
+    return {
+      player: row.category,
+      favPicked: row.Favorites,
+      favPickedLabel: `${row.fav.graded} of ${total} (${row.Favorites.toFixed(0)}%)`,
+      favRecord: row.fav.record,
+      favPct: row.fav.graded ? row.fav.pct : null,
+      dogRecord: row.dog.record,
+      dogPct: row.dog.graded ? row.dog.pct : null,
+    };
+  });
   const marginColumn = { key: 'margin', header: 'Margin', align: 'right', sortable: true, sortType: 'numeric', render: marginCell };
 
   return (
@@ -299,15 +307,18 @@ export default function TrendsScreen({ picks, users, currentWeek }: TrendsScreen
 
       <div className="sl-card trend-card trend-table">
         <h3 className="trend-h3">How each player does on favorites vs. underdogs</h3>
-        <p className="trend-note">Records and cover rate on each side. Tap a column to sort.</p>
+        <p className="trend-note">
+          How many of your picks were favorites, then your win % on each side. Green is above 50%.
+        </p>
         <CfTable
           sortable
           columns={[
             { key: 'player', header: 'Player', className: 'primary-cell' },
-            { key: 'favRecord', header: 'Favs', align: 'right', sortable: true, sortType: 'record' },
-            { key: 'favPct', header: 'Fav %', align: 'right', sortable: true, sortType: 'numeric', render: sidePct },
-            { key: 'dogRecord', header: 'Dogs', align: 'right', sortable: true, sortType: 'record' },
-            { key: 'dogPct', header: 'Dog %', align: 'right', sortable: true, sortType: 'numeric', render: sidePct },
+            { key: 'favPicked', header: 'Favs picked', align: 'right', sortable: true, sortType: 'numeric', render: (_v: number, row: any) => row.favPickedLabel },
+            { key: 'favRecord', header: 'Record', group: 'On favorites', align: 'right' },
+            { key: 'favPct', header: 'Win %', group: 'On favorites', align: 'right', sortable: true, sortType: 'numeric', render: sidePct },
+            { key: 'dogRecord', header: 'Record', group: 'On underdogs', align: 'right' },
+            { key: 'dogPct', header: 'Win %', group: 'On underdogs', align: 'right', sortable: true, sortType: 'numeric', render: sidePct },
           ]}
           rows={sideRows}
           options={{ layout: 'fill' }}
