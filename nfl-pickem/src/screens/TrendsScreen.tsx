@@ -222,6 +222,15 @@ export default function TrendsScreen({ picks, users, currentWeek }: TrendsScreen
   const marginCell = (value: number) =>
     `<span class="trend-${marginClass(value) || 'flat'}">${signed(value)}</span>`;
   const resultCell = (value: string) => `<span class="rescell ${value.toLowerCase()}">${value}</span>`;
+  // Cover rate on one side; '—' when the player never picked that side
+  const sidePct = (value: number | null) => (value === null ? '—' : `${value.toFixed(0)}%`);
+  const sideRows = favShareRows.map((row) => ({
+    player: row.category,
+    favRecord: row.fav.record,
+    favPct: row.fav.graded ? row.fav.pct : null,
+    dogRecord: row.dog.record,
+    dogPct: row.dog.graded ? row.dog.pct : null,
+  }));
   const marginColumn = { key: 'margin', header: 'Margin', align: 'right', sortable: true, sortType: 'numeric', render: marginCell };
 
   return (
@@ -269,7 +278,7 @@ export default function TrendsScreen({ picks, users, currentWeek }: TrendsScreen
 
       <div className="sl-card trend-card">
         <h3 className="trend-h3">Who picks the most favorites</h3>
-        <p className="trend-note">Share of each player's picks that laid points, with their record on favorites and underdogs.</p>
+        <p className="trend-note">Share of each player's picks that laid points. Hover a bar for the split.</p>
         <CfChart
           create={(el, config) => ChartFactory.Bar.createBasic(el, config)}
           config={{
@@ -277,16 +286,31 @@ export default function TrendsScreen({ picks, users, currentWeek }: TrendsScreen
             valueAccessor: 'Favorites',
             color: ChartFactory.getAreaColors()[0], // same "Favorites" color as the chart above
             xMax: 100,
-            valueFormat: (value: number, row: any) =>
-              `${value.toFixed(0)}% · favs ${row.fav.record}, dogs ${row.dog.record}`,
-            annotations: [{ type: 'xLine', value: 50 }],
+            valueFormat: (value: number) => `${value.toFixed(0)}%`,
             tooltipContent: (row: any) =>
               tip.rows([
                 { title: row.category },
-                { label: `Favorites (${row.Favorites.toFixed(0)}%)`, value: row.fav.record },
-                { label: `Underdogs (${row.Underdogs.toFixed(0)}%)`, value: row.dog.record },
+                { label: 'Favorites', value: `${row.Favorites.toFixed(0)}% of picks` },
+                { label: 'Underdogs', value: `${row.Underdogs.toFixed(0)}% of picks` },
               ]),
           }}
+        />
+      </div>
+
+      <div className="sl-card trend-card trend-table">
+        <h3 className="trend-h3">How each player does on favorites vs. underdogs</h3>
+        <p className="trend-note">Records and cover rate on each side. Tap a column to sort.</p>
+        <CfTable
+          sortable
+          columns={[
+            { key: 'player', header: 'Player', className: 'primary-cell' },
+            { key: 'favRecord', header: 'Favs', align: 'right', sortable: true, sortType: 'record' },
+            { key: 'favPct', header: 'Fav %', align: 'right', sortable: true, sortType: 'numeric', render: sidePct },
+            { key: 'dogRecord', header: 'Dogs', align: 'right', sortable: true, sortType: 'record' },
+            { key: 'dogPct', header: 'Dog %', align: 'right', sortable: true, sortType: 'numeric', render: sidePct },
+          ]}
+          rows={sideRows}
+          options={{ layout: 'fill' }}
         />
       </div>
 
