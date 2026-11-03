@@ -284,29 +284,8 @@ export default function TrendsScreen({ picks, users, currentWeek }: TrendsScreen
         />
       </div>
 
-      <div className="sl-card trend-card">
-        <h3 className="trend-h3">Who picks the most favorites</h3>
-        <p className="trend-note">Share of each player's picks that laid points. Hover a bar for the split.</p>
-        <CfChart
-          create={(el, config) => ChartFactory.Bar.createBasic(el, config)}
-          config={{
-            data: favShareRows,
-            valueAccessor: 'Favorites',
-            color: ChartFactory.getAreaColors()[0], // same "Favorites" color as the chart above
-            xMax: 100,
-            valueFormat: (value: number) => `${value.toFixed(0)}%`,
-            tooltipContent: (row: any) =>
-              tip.rows([
-                { title: row.category },
-                { label: 'Favorites', value: `${row.Favorites.toFixed(0)}% of picks` },
-                { label: 'Underdogs', value: `${row.Underdogs.toFixed(0)}% of picks` },
-              ]),
-          }}
-        />
-      </div>
-
       <div className="sl-card trend-card trend-table">
-        <h3 className="trend-h3">How each player does on favorites vs. underdogs</h3>
+        <h3 className="trend-h3">Who picks favorites, and how it goes</h3>
         <p className="trend-note">
           How many of your picks were favorites, then your win % on each side. Green is above 50%.
         </p>
