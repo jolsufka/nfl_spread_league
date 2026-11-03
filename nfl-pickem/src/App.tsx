@@ -18,14 +18,16 @@ import { startChartThemeSync } from './charts';
 import ThisWeekScreen from './screens/ThisWeekScreen';
 import PicksScreen, { WhoAreYouCard } from './screens/PicksScreen';
 import StandingsScreen from './screens/StandingsScreen';
+import TrendsScreen from './screens/TrendsScreen';
 import './theme.css';
 
-type ViewKey = 'week' | 'picks' | 'standings';
+type ViewKey = 'week' | 'picks' | 'standings' | 'trends';
 
 const NAV_ITEMS: Array<{ key: ViewKey; label: string; icon: string }> = [
   { key: 'week', label: 'This Week', icon: '🏈' },
   { key: 'picks', label: 'Picks', icon: '☑️' },
   { key: 'standings', label: 'Standings', icon: '🏆' },
+  { key: 'trends', label: 'Trends', icon: '📈' },
 ];
 
 const initialTheme = (): 'light' | 'dark' => {
@@ -35,7 +37,7 @@ const initialTheme = (): 'light' | 'dark' => {
 };
 
 // Hash routing (GitHub Pages friendly): #/week, #/standings, #/2025/standings
-const VIEW_KEYS: ViewKey[] = ['week', 'picks', 'standings'];
+const VIEW_KEYS: ViewKey[] = ['week', 'picks', 'standings', 'trends'];
 
 const parseHash = (): { season: number | null; view: ViewKey | null } => {
   const parts = window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
@@ -1113,6 +1115,10 @@ function App() {
             )}
           </div>
         ))}
+
+      {effectiveView === 'trends' && (
+        <TrendsScreen picks={picks} users={users} currentWeek={currentWeek} />
+      )}
 
       {effectiveView === 'standings' && (
         <>

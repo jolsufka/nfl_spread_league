@@ -170,3 +170,100 @@ export function cumulativeTrend(picks: Pick[], users: User[]) {
       .filter(Boolean) as Array<{ x: number; y: number }>,
   }));
 }
+
+// ---- Trends: picks joined to final scores ----
+
+export interface GameResult {
+  week: number;
+  gameId: string;
+  away: string;
+  home: string;
+  awayScore: number;
+  homeScore: number;
+}
+
+export interface TrendPick {
+  userId: string;
+  name: string;
+  week: number;
+  gameId: string;
+  team: string;
+  opponent: string;
+  spread: number;
+  teamScore: number;
+  oppScore: number;
+  cover: number; // points the pick beat (+) or missed (−) its own saved spread by
+  result: 'W' | 'L' | 'P';
+  favorite: boolean;
+  home: boolean;
+}
+
+export function trendPicks(picks: Pick[], users: User[], results: GameResult[]): TrendPick[] {
+  const byGame = new Map(results.map((game) => [`${game.week}|${game.gameId}`, game]));
+  const nameOf = new Map(users.map((user) => [user.id, user.name]));
+  return regularSeason(picks).flatMap((userWeek) =>
+    userWeek.picks.flatMap((pick) => {
+      const result = gradeOf(pick);
+      const game = byGame.get(`${userWeek.week}|${pick.gameId}`);
+      if (!result || !game || (pick.pickType && pick.pickType !== 'spread')) return [];
+      const home = pick.team === game.home;
+      if (!home && pick.team !== game.away) return [];
+      const teamScore = home ? game.homeScore : game.awayScore;
+      const oppScore = home ? game.awayScore : game.homeScore;
+      return [{
+        userId: userWeek.userId,
+        name: nameOf.get(userWeek.userId) ?? userWeek.userId,
+        week: userWeek.week,
+        gameId: pick.gameId,
+        team: pick.team,
+        opponent: home ? game.away : game.home,
+        spread: pick.spread,
+        teamScore,
+        oppScore,
+        cover: teamScore - oppScore + pick.spread,
+        result,
+        favorite: pick.spread < 0,
+        home,
+      }];
+    })
+  );
+}
+
+export interface SplitStat {
+  record: string;
+  pct: number; // 0–100, house push rule
+  graded: number;
+  margin: number; // summed cover margin
+}
+
+export function splitStat(rows: Array<{ result: 'W' | 'L' | 'P'; cover: number }>): SplitStat {
+  const record = calcRecord(rows);
+  return {
+    record: recordString(record),
+    pct: record.pct,
+    graded: record.graded,
+    margin: rows.reduce((sum, row) => sum + row.cover, 0),
+  };
+}
+
+export const SPREAD_BUCKETS = [
+  { label: '0–3', test: (abs: number) => abs <= 3 },
+  { label: '3.5–6.5', test: (abs: number) => abs > 3 && abs <= 6.5 },
+  { label: '7+', test: (abs: number) => abs > 6.5 },
+];
+
+// Games where 3+ players took the same side, one row per game-side.
+export function consensusPicks(rows: TrendPick[], minPlayers = 3) {
+  const groups = new Map<string, TrendPick[]>();
+  rows.forEach((row) => {
+    const key = `${row.week}|${row.gameId}|${row.team}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  });
+  return Array.from(groups.values())
+    .filter((group) => group.length >= minPlayers)
+    .map((group) => ({ ...group[0], players: group.map((row) => row.name) }))
+    .sort((a, b) => a.week - b.week || b.players.length - a.players.length);
+}
+
+export const signed = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
+export const fmtSpread = (spread: number) => (spread > 0 ? `+${spread}` : spread === 0 ? 'PK' : `${spread}`);
