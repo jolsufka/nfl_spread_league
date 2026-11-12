@@ -699,8 +699,9 @@ function App() {
         .filter((game) => new Date(game.kickoff_et).getTime() <= Date.now())
         .map((game) => game.id)
     );
+    // No early return when every remaining pick is locked: the member may have
+    // dropped open picks, and the save below is what deletes them.
     const unlockedPicks = selectedPicks.filter((pick) => !lockedGameIds.has(pick.gameId));
-    if (unlockedPicks.length === 0) return true; // everything locked — nothing to save
 
     // Signed-in members save through the hardened RPC: the database verifies
     // identity, kickoff locks, and current lines — the client is untrusted.
@@ -809,11 +810,12 @@ function App() {
         };
       });
 
-      const { error } = await supabase
-        .from('picks')
-        .upsert(pickRecords, { onConflict: 'user_id,season,week,game_id' });
-
-      if (error) throw error;
+      if (pickRecords.length > 0) {
+        const { error } = await supabase
+          .from('picks')
+          .upsert(pickRecords, { onConflict: 'user_id,season,week,game_id' });
+        if (error) throw error;
+      }
 
       // Remove dropped picks now that the new ones are safely stored. Rows for
       // locked games stay, and kept picks were updated in place above.
