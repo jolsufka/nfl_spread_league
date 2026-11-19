@@ -1,22 +1,22 @@
 team,stadium,city,state,weather_summary,forecast_time,game_time
-Baltimore Ravens,M&T Bank Stadium,Baltimore,MD,47°F,2026-11-15T19:30:07.171822,2026-11-16T20:15:00-05:00
-Buffalo Bills,Highmark Stadium,Orchard Park,NY,42°F,2026-11-15T19:30:07.279709,2026-11-15T13:00:00-05:00
-Carolina Panthers,Bank of America Stadium,Charlotte,NC,54°F,2026-11-15T19:30:07.355023,2026-11-15T13:00:00-05:00
-Chicago Bears,Soldier Field,Chicago,IL,51°F,2026-11-15T19:30:07.432349,
-Cincinnati Bengals,Paycor Stadium,Cincinnati,OH,48°F,2026-11-15T19:30:07.527456,2026-11-15T20:20:00-05:00
-Cleveland Browns,Cleveland Browns Stadium,Cleveland,OH,"45°F (feels 39°F) | 26% chance rain (0.18"") | Windy (14mph, gusts 20mph)",2026-11-15T19:30:07.615346,2026-11-15T13:00:00-05:00
-Denver Broncos,Empower Field at Mile High,Denver,CO,57°F,2026-11-15T19:30:07.692146,
-Green Bay Packers,Lambeau Field,Green Bay,WI,48°F,2026-11-15T19:30:07.804830,2026-11-15T13:00:00-05:00
-Jacksonville Jaguars,TIAA Bank Field,Jacksonville,FL,"64°F | Windy (9mph, gusts 19mph)",2026-11-15T19:30:07.879775,2026-11-15T13:00:00-05:00
-Kansas City Chiefs,Arrowhead Stadium,Kansas City,MO,53°F,2026-11-15T19:30:07.954580,2026-11-15T13:00:00-05:00
-Miami Dolphins,Hard Rock Stadium,Miami Gardens,FL,78°F,2026-11-15T19:30:08.057963,2026-11-15T13:00:00-05:00
-New England Patriots,Gillette Stadium,Foxborough,MA,Forecast not yet available for game time,2026-11-15T19:30:08.135884,2026-11-15T09:30:00-05:00
-New York Giants,MetLife Stadium,East Rutherford,NJ,Forecast not yet available for game time,2026-11-15T19:30:08.228873,2026-11-12T20:15:39-05:00
-New York Jets,MetLife Stadium,East Rutherford,NJ,"50°F | Windy (8mph, gusts 19mph)",2026-11-15T19:30:08.306382,2026-11-15T13:00:00-05:00
-Philadelphia Eagles,Lincoln Financial Field,Philadelphia,PA,50°F,2026-11-15T19:30:08.382112,
-Pittsburgh Steelers,Acrisure Stadium,Pittsburgh,PA,45°F,2026-11-15T19:30:08.468091,2026-11-15T20:20:00-05:00
-San Francisco 49ers,Levi's Stadium,Santa Clara,CA,"63°F | Windy (7mph, gusts 18mph)",2026-11-15T19:30:08.543012,2026-11-15T16:25:00-05:00
-Seattle Seahawks,Lumen Field,Seattle,WA,"53°F | 95% chance rain (1.50"") | Windy (9mph, gusts 19mph)",2026-11-15T19:30:08.623677,2026-11-15T16:05:00-05:00
-Tampa Bay Buccaneers,Raymond James Stadium,Tampa,FL,71°F,2026-11-15T19:30:08.715578,
-Tennessee Titans,Nissan Stadium,Nashville,TN,55°F,2026-11-15T19:30:08.790585,2026-11-15T13:00:00-05:00
-Washington Commanders,Northwest Stadium,Landover,MD,Forecast not yet available for game time,2026-11-15T19:30:08.884507,2026-11-12T20:15:39-05:00
+Baltimore Ravens,M&T Bank Stadium,Baltimore,MD,59°F,2026-11-19T21:55:36.118748,2026-11-22T13:00:00-05:00
+Buffalo Bills,Highmark Stadium,Orchard Park,NY,"61°F | Windy (10mph, gusts 19mph)",2026-11-19T21:55:36.276669,2026-11-22T13:00:00-05:00
+Carolina Panthers,Bank of America Stadium,Charlotte,NC,"55°F | 100% chance rain (14.94"") | Windy (9mph, gusts 18mph)",2026-11-19T21:55:36.443484,2026-11-22T13:00:00-05:00
+Chicago Bears,Soldier Field,Chicago,IL,"51°F | 29% chance rain (1.05"") | Windy (9mph, gusts 21mph)",2026-11-19T21:55:36.612346,2026-11-22T13:00:00-05:00
+Cincinnati Bengals,Paycor Stadium,Cincinnati,OH,40°F,2026-11-19T21:55:36.779154,2026-11-23T20:15:00-05:00
+Cleveland Browns,Cleveland Browns Stadium,Cleveland,OH,58°F | Windy (13mph),2026-11-19T21:55:36.905959,
+Denver Broncos,Empower Field at Mile High,Denver,CO,43°F,2026-11-19T21:55:37.075488,2026-11-22T16:25:00-05:00
+Green Bay Packers,Lambeau Field,Green Bay,WI,60°F,2026-11-19T21:55:37.197553,
+Jacksonville Jaguars,TIAA Bank Field,Jacksonville,FL,"70°F | Windy (8mph, gusts 16mph)",2026-11-19T21:55:37.353534,2026-11-22T16:25:00-05:00
+Kansas City Chiefs,Arrowhead Stadium,Kansas City,MO,"49°F | Windy (12mph, gusts 28mph)",2026-11-19T21:55:37.509983,2026-11-22T13:00:00-05:00
+Miami Dolphins,Hard Rock Stadium,Miami Gardens,FL,"80°F | 33% chance rain (0.30"")",2026-11-19T21:55:37.672197,2026-11-22T13:00:00-05:00
+New England Patriots,Gillette Stadium,Foxborough,MA,51°F,2026-11-19T21:55:37.795541,
+New York Giants,MetLife Stadium,East Rutherford,NJ,56°F,2026-11-19T21:55:37.952740,2026-11-22T16:25:00-05:00
+New York Jets,MetLife Stadium,East Rutherford,NJ,56°F,2026-11-19T21:55:38.108767,2026-11-22T16:05:00-05:00
+Philadelphia Eagles,Lincoln Financial Field,Philadelphia,PA,57°F,2026-11-19T21:55:38.275110,2026-11-22T13:00:00-05:00
+Pittsburgh Steelers,Acrisure Stadium,Pittsburgh,PA,61°F,2026-11-19T21:55:38.432936,2026-11-22T13:00:00-05:00
+San Francisco 49ers,Levi's Stadium,Santa Clara,CA,"52°F | 98% chance rain (1.29"")",2026-11-19T21:55:38.602833,2026-11-22T20:20:00-05:00
+Seattle Seahawks,Lumen Field,Seattle,WA,"49°F | Windy (10mph, gusts 19mph)",2026-11-19T21:55:38.758565,
+Tampa Bay Buccaneers,Raymond James Stadium,Tampa,FL,"73°F | Windy (9mph, gusts 19mph)",2026-11-19T21:55:38.916115,2026-11-22T13:00:00-05:00
+Tennessee Titans,Nissan Stadium,Nashville,TN,68°F,2026-11-19T21:55:39.085108,2026-11-22T13:00:00-05:00
+Washington Commanders,Northwest Stadium,Landover,MD,"49°F | Windy (10mph, gusts 20mph)",2026-11-19T21:55:39.199565,2026-11-23T20:15:00-05:00
