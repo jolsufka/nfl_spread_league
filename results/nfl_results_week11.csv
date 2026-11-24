@@ -1,0 +1,14 @@
+game_id,kickoff_et,away,home,away_score,home_score,actual_margin,home_spread,away_spread,home_ats_margin,home_ats_result,away_ats_result,total,actual_total,over_under
+1,2026-11-19 20:15:00-05:00,Indianapolis Colts,Houston Texans,3,26,23,-12.5,12.5,10.5,W,L,44.5,29,UNDER
+2,2026-11-22 13:00:00-05:00,Arizona Cardinals,Kansas City Chiefs,7,34,27,-15.5,15.5,11.5,W,L,40.5,41,OVER
+3,2026-11-22 13:00:00-05:00,Baltimore Ravens,Carolina Panthers,33,35,2,-3.0,3.0,-1.0,L,W,43.5,68,OVER
+4,2026-11-22 13:00:00-05:00,Miami Dolphins,Buffalo Bills,9,26,17,-16.5,16.5,0.5,W,L,44.5,35,UNDER
+5,2026-11-22 13:00:00-05:00,New Orleans Saints,Chicago Bears,13,21,8,-11.5,11.5,-3.5,L,W,48.5,34,UNDER
+6,2026-11-22 13:00:00-05:00,Tennessee Titans,Dallas Cowboys,30,51,21,-7.5,7.5,13.5,W,L,54.5,81,OVER
+7,2026-11-22 13:00:00-05:00,Tampa Bay Buccaneers,Detroit Lions,21,31,10,-4.5,4.5,5.5,W,L,47.5,52,OVER
+8,2026-11-22 13:00:00-05:00,Pittsburgh Steelers,Philadelphia Eagles,16,19,3,3.5,-3.5,6.5,W,L,37.5,35,UNDER
+9,2026-11-22 16:05:00-05:00,New York Jets,Los Angeles Chargers,27,24,-3,-3.0,3.0,-6.0,L,W,42.5,51,OVER
+10,2026-11-22 16:25:00-05:00,Las Vegas Raiders,Denver Broncos,24,38,14,-10.5,10.5,3.5,W,L,40.5,62,OVER
+11,2026-11-22 16:25:00-05:00,Jacksonville Jaguars,New York Giants,18,23,5,6.0,-6.0,11.0,W,L,46.5,41,UNDER
+12,2026-11-22 20:20:00-05:00,Minnesota Vikings,San Francisco 49ers,10,35,25,-3.5,3.5,21.5,W,L,46.5,45,UNDER
+13,2026-11-23 20:15:00-05:00,Cincinnati Bengals,Washington Commanders,20,22,2,6.0,-6.0,8.0,W,L,54.5,42,UNDER
