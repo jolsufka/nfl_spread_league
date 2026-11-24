@@ -1,0 +1,22 @@
+user,game_id,team,spread,result,game_date
+nathan,3,Baltimore Ravens,3.0,W,2026-11-22
+nathan,5,Chicago Bears,-11.5,L,2026-11-22
+nathan,4,Miami Dolphins,16.5,L,2026-11-22
+shane,12,Minnesota Vikings,3.5,L,2026-11-22
+shane,7,Detroit Lions,-4.5,W,2026-11-22
+shane,5,Chicago Bears,-11.5,L,2026-11-22
+max,12,Minnesota Vikings,3.5,L,2026-11-22
+cam,13,Cincinnati Bengals,-6.0,L,2026-11-23
+cam,7,Detroit Lions,-4.5,W,2026-11-22
+cam,9,Los Angeles Chargers,-3.0,L,2026-11-22
+jacob,12,San Francisco 49ers,-3.0,W,2026-11-22
+jacob,11,New York Giants,6.0,W,2026-11-22
+jacob,5,Chicago Bears,-11.5,L,2026-11-22
+john,3,Carolina Panthers,-3.0,L,2026-11-22
+max,9,New York Jets,3.5,W,2026-11-22
+max,8,Pittsburgh Steelers,-3.5,L,2026-11-22
+connor,12,Minnesota Vikings,3.5,L,2026-11-22
+connor,3,Carolina Panthers,-3.0,L,2026-11-22
+connor,11,New York Giants,6.0,W,2026-11-22
+john,12,San Francisco 49ers,-3.0,W,2026-11-22
+john,13,Cincinnati Bengals,-6.0,L,2026-11-23
